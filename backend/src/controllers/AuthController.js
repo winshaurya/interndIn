@@ -4,7 +4,7 @@ const jwt = require("jsonwebtoken");
 const nodemailer = require("nodemailer");
 const crypto = require("crypto");
 
-const SECRET_KEY = "your_jwt_secret";
+const SECRET_KEY = process.env.JWT_SECRET || "your_jwt_secret";
 
 // ==================== REGISTER STUDENT ====================
 const registerStudent = async (req, res) => {
@@ -86,12 +86,12 @@ const registerStudent = async (req, res) => {
 
 // // ==================== LOGIN ====================
 const login = async (req, res) => {
-  const { email, password_hash } = req.body;
+  const { email, password } = req.body;
 
   const user = await db("users").where({ email }).first();
   if (!user) return res.status(400).json({ message: "User not found" });
 
-  const valid = await bcrypt.compare(password_hash, user.password_hash);
+  const valid = await bcrypt.compare(password, user.password_hash);
   if (!valid) return res.status(401).json({ message: "Invalid password" });
 
   const roleToAssign = user.role.toLowerCase();
@@ -104,7 +104,16 @@ const login = async (req, res) => {
     }
   );
 
-  res.json({ token });
+  // Remove password from user object
+  const { password_hash, ...userWithoutPassword } = user;
+
+  res.json({
+    token,
+    user: {
+      ...userWithoutPassword,
+      role: roleToAssign
+    }
+  });
 };
 
 // ==================== REGISTER ALUMNI ====================

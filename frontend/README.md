@@ -1,12 +1,13 @@
-# React + Vite
+This folder is intended to contain the frontend application (renamed from `spotlight-seeker-19`).
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Currently the original frontend code remains in `spotlight-seeker-19/` in the repository root.
 
-Currently, two official plugins are available:
+Steps to adopt the rename locally:
+1. Move or rename `spotlight-seeker-19` to `frontend` on your local machine:
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+   - Windows PowerShell:
+     Rename-Item -Path .\\spotlight-seeker-19 -NewName frontend
 
-## Expanding the ESLint configuration
+2. Verify `package.json` scripts and run `npm install` then `npm run build` or `npm run dev`.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+If you'd like, I can attempt to move all files in-repo (copy them into `frontend/`) — tell me if you want that done here.

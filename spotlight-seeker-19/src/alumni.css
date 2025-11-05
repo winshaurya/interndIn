@@ -1,0 +1,14 @@
+/* src/alumni.css */
+
+.alumni-theme .sidebar {
+    background-color: hsl(220, 60%, 15%) !important; /* Dark blue */
+    color: hsl(0, 0%, 100%) !important; /* White text for contrast */
+}
+
+.alumni-theme .sidebar a {
+    color: hsl(0, 0%, 100%) !important; /* Ensure sidebar links are white */
+}
+
+.alumni-theme .sidebar a:hover {
+    background-color: hsl(220, 60%, 25%) !important; /* Slightly lighter blue on hover */
+}
