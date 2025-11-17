@@ -377,16 +377,16 @@ exports.applyJob = async (req, res) => {
         applied_at: trx.fn.now(),
       });
 
-      // 5) Recompute + write back the total into job_applications."No_of_applicants"
+      // 5) Recompute + write back the total into job_applications.applicant_count
       const newCountRow = await trx("job_applications")
         .where({ job_id })
         .count("* as c")
         .first();
       const newCount = Number(newCountRow?.c || 0);
 
-      // Use raw to be safe with the mixed-case column name
+      // Use raw to be safe with the column name
       await trx.raw(
-        'UPDATE job_applications SET "No_of_applicants" = ? WHERE job_id = ?',
+        'UPDATE job_applications SET applicant_count = ? WHERE job_id = ?',
         [newCount, job_id]
       );
     });
@@ -416,7 +416,7 @@ exports.getAppliedJobs = async (req, res) => {
         "ja.job_id",
         "ja.user_id",
         "ja.resume_url",
-        db.raw('"ja"."No_of_applicants" as no_of_applicants'),
+        db.raw('ja.applicant_count as no_of_applicants'),
         "ja.applied_at",
         "j.job_title",
         "j.job_description",
@@ -475,9 +475,9 @@ exports.withdrawApplication = async (req, res) => {
         .first();
       const updatedCount = Number(countRow?.c || 0);
 
-      // 4️⃣ Update the No_of_applicants column for all remaining rows of that job
+      // 4️⃣ Update the applicant_count column for all remaining rows of that job
       await trx.raw(
-        'UPDATE job_applications SET "No_of_applicants" = ? WHERE job_id = ?',
+        'UPDATE job_applications SET applicant_count = ? WHERE job_id = ?',
         [updatedCount, job_id]
       );
     });
@@ -539,7 +539,7 @@ exports.viewApplicants = async (req, res) => {
         "ja.job_id",
         "ja.user_id as student_user_id",
         "ja.resume_url",
-        db.raw('"ja"."No_of_applicants" as no_of_applicants'), // mixed-case column
+        db.raw('ja.applicant_count as no_of_applicants'), // renamed column
         "ja.applied_at",
         "u.email as student_email",
         "sp.name as student_name",

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,6 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiClient } from "@/lib/api";
 import ProfileCompletionMeter from "@/components/profile/ProfileCompletionMeter";
 import ProfileEditor from "@/components/profile/ProfileEditor";
 import { 
@@ -21,33 +23,61 @@ import {
   Plus,
   X,
   MapPin,
-  Star
+  Star,
+  Loader2
 } from "lucide-react";
 
 const StudentProfile = () => {
   const { toast } = useToast();
-  const [isLoading, setIsLoading] = useState(false);
+  const queryClient = useQueryClient();
 
-  const [profileData, setProfileData] = useState({
-    name: "",
-    email: "",
-    phone: "",
-    dateOfBirth: "",
-    branch: "",
-    currentYear: "",
-    cgpa: "",
-    achievements: "",
-    skills: [],
-    experiences: [],
-    resumeUploaded: false,
-    resumeFileName: "",
-    desiredRoles: [],
-    preferredLocations: [],
-    workMode: "hybrid",
-    dataConsent: false,
-    codeOfConduct: false,
-    contactPermissions: false,
+  const { data: profileData, isLoading } = useQuery({
+    queryKey: ['student-profile'],
+    queryFn: () => apiClient.getStudentProfile(),
   });
+
+  const updateProfileMutation = useMutation({
+    mutationFn: (data) => apiClient.updateStudentProfile(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['student-profile']);
+      toast({
+        title: "Profile Updated",
+        description: "Your profile has been updated successfully!",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Update Failed",
+        description: error.message || "Failed to update profile",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const profile = profileData?.data;
+
+  const [profileDataState, setProfileDataState] = useState({
+    name: "",
+    studentId: "",
+    branch: "",
+    gradYear: "",
+    skills: [],
+    resumeUrl: "",
+  });
+
+  // Update state when profile loads
+  useEffect(() => {
+    if (profile) {
+      setProfileDataState({
+        name: profile.name || "",
+        studentId: profile.student_id || "",
+        branch: profile.branch || "",
+        gradYear: profile.grad_year || "",
+        skills: profile.skills || [],
+        resumeUrl: profile.resume_url || "",
+      });
+    }
+  }, [profile]);
 
   const profileSections = [
     { id: "personal", completed: !!(profileData.name && profileData.email && profileData.phone), weight: 20 },
@@ -79,28 +109,17 @@ const StudentProfile = () => {
   ];
 
   const handleSave = () => {
-    setIsLoading(true);
-    setTimeout(() => {
-      toast({ title: "Profile updated!", description: "Your profile has been saved successfully." });
-      setIsLoading(false);
-    }, 1000);
+    updateProfileMutation.mutate(profileDataState);
   };
 
   const addSkill = (skillName) => {
-    if (!profileData.skills.find(s => s.name === skillName)) {
-      setProfileData(prev => ({ ...prev, skills: [...prev.skills, { name: skillName, proficiency: 3, experience: 1 }] }));
+    if (!profileDataState.skills.find(s => s === skillName)) {
+      setProfileDataState(prev => ({ ...prev, skills: [...prev.skills, skillName] }));
     }
   };
 
   const removeSkill = (skillName) => {
-    setProfileData(prev => ({ ...prev, skills: prev.skills.filter(s => s.name !== skillName) }));
-  };
-
-  const updateSkill = (skillName, field, value) => {
-    setProfileData(prev => ({
-      ...prev,
-      skills: prev.skills.map(s => s.name === skillName ? { ...s, [field]: value } : s)
-    }));
+    setProfileDataState(prev => ({ ...prev, skills: prev.skills.filter(s => s !== skillName) }));
   };
 
   return (
@@ -117,7 +136,7 @@ const StudentProfile = () => {
               <p className="text-muted-foreground">Complete your profile to unlock job application opportunities</p>
             </div>
           </div>
-          <ProfileEditor profileData={profileData} setProfileData={setProfileData} onSave={handleSave} />
+          <ProfileEditor profileData={profileDataState} setProfileData={setProfileDataState} onSave={handleSave} />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
@@ -339,8 +358,9 @@ const StudentProfile = () => {
             </Tabs>
 
             <div className="flex justify-end mt-4">
-              <Button variant="gradient" size="lg" onClick={handleSave} disabled={isLoading}>
-                {isLoading ? "Saving..." : "Save Profile"}
+              <Button variant="gradient" size="lg" onClick={handleSave} disabled={updateProfileMutation.isPending}>
+                {updateProfileMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                {updateProfileMutation.isPending ? "Saving..." : "Save Profile"}
               </Button>
             </div>
           </div>

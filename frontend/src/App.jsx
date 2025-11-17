@@ -3,7 +3,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster as AppToaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
+import { AuthProvider } from '@/contexts/AuthContext';
 
 /* ------------------ Admin module imports ------------------ */
 import { AdminLayout } from "@/components/admin/AdminLayout";
@@ -38,7 +38,7 @@ import EditMyProfilePage from "./pages/EditMyProfilePage";
 import JobApplicantsPage from "./pages/JobApplicantsPage";
 
 /* ------------------ Shared ------------------ */
-import NotFound from "./pages/NotFound";
+import ProtectedRoute from '@/components/ProtectedRoute';
 /* ---------------------------------------------------------- */
 
 const queryClient = new QueryClient();
@@ -46,10 +46,11 @@ const queryClient = new QueryClient();
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <AppToaster />
-        <Sonner />
-        <BrowserRouter>
+      <AuthProvider>
+        <TooltipProvider>
+          <AppToaster />
+          <Sonner />
+          <BrowserRouter>
           <Routes>
             {/* ---------- Student / public routes ---------- */}
             <Route path="/" element={<Index />} />
@@ -62,11 +63,11 @@ export default function App() {
             <Route path="/reset-password" element={<ResetPassword />} />
 
             {/* Student dashboard & profile */}
-            <Route path="/dashboard" element={<StudentDashboard />} />
-            <Route path="/student/profile" element={<StudentProfile />} />
+            <Route path="/dashboard" element={<ProtectedRoute allowedRoles={['student']}><StudentDashboard /></ProtectedRoute>} />
+            <Route path="/student/profile" element={<ProtectedRoute allowedRoles={['student']}><StudentProfile /></ProtectedRoute>} />
 
             {/* ---------------- Admin routes (nested) ----------------- */}
-            <Route path="/admin" element={<AdminLayout />}>
+            <Route path="/admin" element={<ProtectedRoute allowedRoles={['admin']}><AdminLayout /></ProtectedRoute>}>
               <Route index element={<AdminDashboard />} />
               <Route path="companies" element={<CompaniesManagement />} />
               <Route path="postings" element={<PostingsManagement />} />
@@ -78,7 +79,7 @@ export default function App() {
             </Route>
 
             {/* ---------------- Alumni routes (nested) ----------------- */}
-            <Route path="/alumni" element={<AlumniLayout />}>
+            <Route path="/alumni" element={<ProtectedRoute allowedRoles={['alumni']}><AlumniLayout /></ProtectedRoute>}>
               <Route index element={<AlumniIndex />} />
               <Route path="postings" element={<PostingsPage />} />
               <Route path="post-job" element={<PostJobPage />} />
@@ -94,6 +95,7 @@ export default function App() {
           </Routes>
         </BrowserRouter>
       </TooltipProvider>
+    </AuthProvider>
     </QueryClientProvider>
   );
 }

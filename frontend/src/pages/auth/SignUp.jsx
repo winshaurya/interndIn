@@ -8,6 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { Eye, EyeOff, GraduationCap, Building } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
+import { apiClient } from "@/lib/api";
 
 const SignUp = () => {
   const [showPassword, setShowPassword] = useState(false);
@@ -24,7 +25,9 @@ const SignUp = () => {
     confirmPassword: "",
     phone: "",
     studentId: "",
+    branch: "",
     gradYear: "",
+    currentTitle: "",
     acceptTerms: false,
   });
 
@@ -53,6 +56,26 @@ const SignUp = () => {
       return;
     }
 
+    if (userType === "student" && !formData.branch) {
+      toast({
+        title: "Branch required",
+        description: "Please select your branch.",
+        variant: "destructive",
+      });
+      setIsLoading(false);
+      return;
+    }
+
+    if (userType === "alumni" && !formData.currentTitle) {
+      toast({
+        title: "Job title required",
+        description: "Please enter your current job title.",
+        variant: "destructive",
+      });
+      setIsLoading(false);
+      return;
+    }
+
     if (!formData.acceptTerms) {
       toast({
         title: "Terms not accepted",
@@ -64,8 +87,33 @@ const SignUp = () => {
     }
 
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      let response;
+      if (userType === "student") {
+        response = await apiClient.request('/auth/register/student', {
+          method: 'POST',
+          body: JSON.stringify({
+            name: formData.name,
+            role: 'student',
+            email: formData.email,
+            password_hash: formData.password,
+            branch: formData.branch,
+            gradYear: formData.gradYear,
+            student_id: formData.studentId,
+          }),
+        });
+      } else {
+        response = await apiClient.request('/auth/register/alumni', {
+          method: 'POST',
+          body: JSON.stringify({
+            name: formData.name,
+            role: 'alumni',
+            email: formData.email,
+            password_hash: formData.password,
+            current_title: formData.currentTitle,
+            grad_year: formData.gradYear,
+          }),
+        });
+      }
 
       toast({
         title: "Account created successfully!",
@@ -78,7 +126,7 @@ const SignUp = () => {
     } catch (error) {
       toast({
         title: "Registration failed",
-        description: "Something went wrong. Please try again.",
+        description: error.message || "Something went wrong. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -174,6 +222,29 @@ const SignUp = () => {
                 </div>
               )}
 
+              {/* Branch (for students only) */}
+              {userType === "student" && (
+                <div className="space-y-2">
+                  <Label htmlFor="branch">Branch</Label>
+                  <Select onValueChange={(value) => handleInputChange("branch", value)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select your branch" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="CSE">Computer Science & Engineering</SelectItem>
+                      <SelectItem value="IT">Information Technology</SelectItem>
+                      <SelectItem value="ECE">Electronics & Communication Engineering</SelectItem>
+                      <SelectItem value="EE">Electrical Engineering</SelectItem>
+                      <SelectItem value="ME">Mechanical Engineering</SelectItem>
+                      <SelectItem value="CE">Civil Engineering</SelectItem>
+                      <SelectItem value="CHE">Chemical Engineering</SelectItem>
+                      <SelectItem value="MCA">Master of Computer Applications</SelectItem>
+                      <SelectItem value="MBA">Master of Business Administration</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
               {/* Graduation Year (for alumni) */}
               {userType === "alumni" && (
                 <div className="space-y-2">
@@ -193,6 +264,21 @@ const SignUp = () => {
                       })}
                     </SelectContent>
                   </Select>
+                </div>
+              )}
+
+              {/* Current Title (for alumni) */}
+              {userType === "alumni" && (
+                <div className="space-y-2">
+                  <Label htmlFor="currentTitle">Current Job Title</Label>
+                  <Input
+                    id="currentTitle"
+                    type="text"
+                    placeholder="e.g. Software Engineer"
+                    value={formData.currentTitle}
+                    onChange={(e) => handleInputChange("currentTitle", e.target.value)}
+                    required
+                  />
                 </div>
               )}
 

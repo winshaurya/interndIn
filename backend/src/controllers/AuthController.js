@@ -46,8 +46,13 @@ const registerStudent = async (req, res) => {
       return res.status(400).json({ error: "Branch is incorrect" });
     }
 
-    const existingUser = await db("users").where({ email }).first();
-    if (existingUser) {
+    const { data: existingUser, error: existingError } = await db
+      .from('users')
+      .select('*')
+      .eq('email', email)
+      .single();
+
+    if (existingUser && !existingError) {
       return res
         .status(409)
         .json({ error: "User with this email already exists" });
@@ -55,27 +60,38 @@ const registerStudent = async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password_hash, 10);
 
-    // ✅ Use transaction to ensure atomicity
-    await db.transaction(async (trx) => {
-      // Insert user and return its generated id (UUID)
-      const [newUser] = await trx("users").insert(
-        {
-          email,
-          password_hash: hashedPassword,
-          role,
-        },
-        ["id"] // important: this returns the id (Postgres syntax)
-      );
+    // Insert user
+    const { data: newUser, error: userError } = await db
+      .from('users')
+      .insert({
+        email,
+        password_hash: hashedPassword,
+        role,
+      })
+      .select('id')
+      .single();
 
-      // Insert into student_profiles with the fetched user_id
-      await trx("student_profiles").insert({
+    if (userError) {
+      console.error('User insert error:', userError);
+      return res.status(500).json({ error: 'Failed to create user' });
+    }
+
+    // Insert into student_profiles
+    const { error: profileError } = await db
+      .from('student_profiles')
+      .insert({
         name,
-        user_id: newUser.id, // fetched from the previous insert
+        user_id: newUser.id,
         student_id,
         branch,
         grad_year: gradYear,
       });
-    });
+
+    if (profileError) {
+      console.error('Profile insert error:', profileError);
+      // Optionally, delete the user if profile fails, but for simplicity, leave it
+      return res.status(500).json({ error: 'Failed to create profile' });
+    }
 
     res.status(201).json({ message: "User registered successfully" });
   } catch (error) {
@@ -88,8 +104,13 @@ const registerStudent = async (req, res) => {
 const login = async (req, res) => {
   const { email, password } = req.body;
 
-  const user = await db("users").where({ email }).first();
-  if (!user) return res.status(400).json({ message: "User not found" });
+  const { data: user, error } = await db
+    .from('users')
+    .select('*')
+    .eq('email', email)
+    .single();
+
+  if (error || !user) return res.status(400).json({ message: "User not found" });
 
   const valid = await bcrypt.compare(password, user.password_hash);
   if (!valid) return res.status(401).json({ message: "Invalid password" });
@@ -156,8 +177,13 @@ const registerAlumni = async (req, res) => {
   }
 
   try {
-    const existingAlumni = await db("users").where({ email }).first();
-    if (existingAlumni) {
+    const { data: existingAlumni, error: existingError } = await db
+      .from('users')
+      .select('*')
+      .eq('email', email)
+      .single();
+
+    if (existingAlumni && !existingError) {
       return res.status(409).json({
         error:
           "An account with this email already exists or is pending verification.",
@@ -165,34 +191,53 @@ const registerAlumni = async (req, res) => {
     }
 
     const hashedPassword = await bcrypt.hash(password_hash, 10);
-    await db.transaction(async (trx) => {
-      const [newUser] = await trx("users").insert(
-        {
-          email,
-          password_hash: hashedPassword,
-          role,
-        },
-        ["id"] // important: this returns the id (Postgres syntax)
-      );
 
-      const [newAlumni] = await trx("alumni_profiles").insert(
-        {
-          name,
-          user_id: newUser.id,
-          grad_year,
-          current_title,
-          // status: "pending", // will update after admin approval
-        },
-        ["id"]
-      );
+    // Insert user
+    const { data: newUser, error: userError } = await db
+      .from('users')
+      .insert({
+        email,
+        password_hash: hashedPassword,
+        role,
+      })
+      .select('id')
+      .single();
 
-      await trx("companies").insert({
+    if (userError) {
+      console.error('User insert error:', userError);
+      return res.status(500).json({ error: 'Failed to create user' });
+    }
+
+    // Insert alumni profile
+    const { data: newAlumni, error: alumniError } = await db
+      .from('alumni_profiles')
+      .insert({
+        name,
+        user_id: newUser.id,
+        grad_year: gradYear,
+        current_title,
+      })
+      .select('id')
+      .single();
+
+    if (alumniError) {
+      console.error('Alumni insert error:', alumniError);
+      return res.status(500).json({ error: 'Failed to create alumni profile' });
+    }
+    // Insert company
+    const { error: companyError } = await db
+      .from('companies')
+      .insert({
         alumni_id: newAlumni.id,
         user_id: newUser.id,
       });
-    });
 
-    res.status(201).json({
+    if (companyError) {
+      console.error('Company insert error:', companyError);
+      return res.status(500).json({ error: 'Failed to create company' });
+    }
+
+    res.status(201).json({ message: "Alumni registered successfully" });
       message:
         "Registration submitted successfully. You will receive an email once your account has been verified by an administrator.",
     });
@@ -236,8 +281,13 @@ const forgotPasswordGenerateOtp = async (req, res) => {
       return res.status(400).json({ error: "Email is required" });
     }
 
-    const user = await db("users").where({ email }).first();
-    if (!user) {
+    const { data: user, error } = await db
+      .from('users')
+      .select('*')
+      .eq('email', email)
+      .single();
+
+    if (error || !user) {
       return res.status(404).json({ error: "User not found" });
     }
 
@@ -246,14 +296,23 @@ const forgotPasswordGenerateOtp = async (req, res) => {
 
     console.log(otp + "????????LLLLL");
 
-    await db("otp_verifications").where({ email: user.email }).del();
+    // Delete existing OTP
+    await db.from('otp_verifications').delete().eq('email', user.email);
 
-    //Insert OTP record
-    await db("otp_verifications").insert({
-      email: user.email,
-      otp,
-      expires_at: expiryTime,
-    });
+    // Insert OTP record
+    const { error: otpError } = await db
+      .from('otp_verifications')
+      .insert({
+        email: user.email,
+        otp,
+        expires_at: expiryTime,
+      });
+
+    if (otpError) {
+      console.error('OTP insert error:', otpError);
+      return res.status(500).json({ error: 'Failed to generate OTP' });
+    }
+
     console.log(user.email + "????????LLLLL");
 
     try {
@@ -288,21 +347,31 @@ const resetPasswordWithOTP = async (req, res) => {
   }
 
   try {
-    const otpEntry = await db("otp_verifications")
-      .where({ email, otp })
-      .andWhere("expires_at", ">", new Date())
-      .first();
+    const { data: otpEntry, error: otpError } = await db
+      .from('otp_verifications')
+      .select('*')
+      .eq('email', email)
+      .eq('otp', otp)
+      .gt('expires_at', new Date().toISOString())
+      .single();
 
-    if (!otpEntry)
+    if (otpError || !otpEntry) {
       return res.status(400).json({ error: "Invalid or expired OTP" });
+    }
 
     const hashedPassword = await bcrypt.hash(newPassword, 10);
 
-    await db("users")
-      .where({ email })
-      .update({ password_hash: hashedPassword });
+    const { error: updateError } = await db
+      .from('users')
+      .update({ password_hash: hashedPassword })
+      .eq('email', email);
 
-    await db("otp_verifications").where({ email, otp }).del();
+    if (updateError) {
+      console.error('Password update error:', updateError);
+      return res.status(500).json({ error: 'Failed to update password' });
+    }
+
+    await db.from('otp_verifications').delete().eq('email', email).eq('otp', otp);
 
     res.json({ message: "Password reset successful" });
   } catch (error) {
@@ -323,11 +392,18 @@ const generateEmailVerificationOTP = async (req, res) => {
 
     console.log(otp + "????????LLLLL");
 
-    await db("otp_verifications").insert({
-      email,
-      otp,
-      expires_at: expiresAt,
-    });
+    const { error: otpError } = await db
+      .from('otp_verifications')
+      .insert({
+        email,
+        otp,
+        expires_at: expiresAt,
+      });
+
+    if (otpError) {
+      console.error('OTP insert error:', otpError);
+      return res.status(500).json({ error: 'Failed to generate OTP' });
+    }
 
     await sendEmail(
       email,
@@ -350,16 +426,29 @@ const verifyEmailWithOTP = async (req, res) => {
     return res.status(400).json({ error: "Email and OTP are required" });
 
   try {
-    const otpEntry = await db("otp_verifications")
-      .where({ email, otp })
-      .andWhere("expires_at", ">", new Date())
-      .first();
+    const { data: otpEntry, error: otpError } = await db
+      .from('otp_verifications')
+      .select('*')
+      .eq('email', email)
+      .eq('otp', otp)
+      .gt('expires_at', new Date().toISOString())
+      .single();
 
-    if (!otpEntry)
+    if (otpError || !otpEntry) {
       return res.status(400).json({ error: "Invalid or expired OTP" });
+    }
 
-    await db("users").where({ email }).update({ is_verified: true });
-    await db("otp_verifications").where({ email, otp }).del();
+    const { error: updateError } = await db
+      .from('users')
+      .update({ is_verified: true })
+      .eq('email', email);
+
+    if (updateError) {
+      console.error('User update error:', updateError);
+      return res.status(500).json({ error: 'Failed to verify email' });
+    }
+
+    await db.from('otp_verifications').delete().eq('email', email).eq('otp', otp);
 
     return res.json({ message: "Email verified successfully" });
   } catch (error) {

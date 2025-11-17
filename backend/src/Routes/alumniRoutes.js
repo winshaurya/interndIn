@@ -10,4 +10,7 @@ const router = express.Router();
 router.post("/profile", authenticate, completeProfile);
 
 router.post("/update-profile", authenticate, updateProfile);
+
+router.get("/dashboard", authenticate, require("../controllers/AlumniController").getDashboardStats);
+
 module.exports = router;

@@ -1,12 +1,13 @@
 // src/config/db.js
-const knex = require("knex");
-const knexfile = require("../../knexfile");
+const { createClient } = require('@supabase/supabase-js');
 
-const environment = process.env.NODE_ENV || "development";
-const db = knex(knexfile[environment]);
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
 
-db.raw("SELECT 1")
-  .then(() => console.log("Connected to PostgreSQL via Knex"))
-  .catch((err) => console.error("DB connection error:", err));
+if (!supabaseUrl || !supabaseKey) {
+  throw new Error('Missing Supabase environment variables');
+}
 
-module.exports = db;
+const supabase = createClient(supabaseUrl, supabaseKey);
+
+module.exports = supabase;

@@ -9,6 +9,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
 import { ArrowLeft, ArrowRight, Plus, Trash2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useMutation } from "@tanstack/react-query";
+import { apiClient } from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
 
 const initialFormData = {
   jobTitle: "",
@@ -49,8 +52,37 @@ const workModes = ["Remote", "On-site", "Hybrid"];
 
 export function PostJob() {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState(initialFormData);
+
+  const postJobMutation = useMutation({
+    mutationFn: (jobData) => apiClient.createJob(jobData),
+    onSuccess: () => {
+      toast({
+        title: "Job Posted Successfully",
+        description: "Your job posting has been published!",
+      });
+      navigate("/alumni/postings");
+    },
+    onError: (error) => {
+      toast({
+        title: "Failed to Post Job",
+        description: error.message || "Something went wrong",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handlePublish = () => {
+    // Transform form data to match API
+    const jobData = {
+      job_title: formData.jobTitle,
+      job_description: formData.description,
+      // Add other fields as needed
+    };
+    postJobMutation.mutate(jobData);
+  };
 
   const calculateProgress = () => {
     let completedWeight = 0;
@@ -493,8 +525,8 @@ export function PostJob() {
               <ArrowRight className="h-4 w-4 ml-2" />
             </Button>
           ) : (
-            <Button>
-              Publish Job
+            <Button onClick={handlePublish} disabled={postJobMutation.isPending}>
+              {postJobMutation.isPending ? "Publishing..." : "Publish Job"}
             </Button>
           )}
         </div>

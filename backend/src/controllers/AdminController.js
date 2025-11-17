@@ -262,3 +262,40 @@ exports.sendNotification = async (req, res) => {
     res.status(500).json({ error: "Internal server error" });
   }
 };
+
+exports.getDashboardStats = async (req, res) => {
+  try {
+    // New users (last 30 days)
+    const newUsers = await db("users")
+      .where("created_at", ">", db.raw("NOW() - INTERVAL '30 days'"))
+      .count('id as count')
+      .first();
+
+    // Active companies
+    const activeCompanies = await db("companies")
+      .where({ status: "active" })
+      .count('id as count')
+      .first();
+
+    // Live postings
+    const livePostings = await db("jobs")
+      .count('id as count')
+      .first();
+
+    // Applications today
+    const applicationsToday = await db("job_applications")
+      .where("applied_at", ">", db.raw("CURRENT_DATE"))
+      .count('id as count')
+      .first();
+
+    res.json({
+      newUsers: parseInt(newUsers.count),
+      activeCompanies: parseInt(activeCompanies.count),
+      livePostings: parseInt(livePostings.count),
+      applicationsToday: parseInt(applicationsToday.count),
+    });
+  } catch (error) {
+    console.error("getDashboardStats error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};

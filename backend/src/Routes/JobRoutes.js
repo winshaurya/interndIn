@@ -26,8 +26,8 @@ router.put("/update-job/:id",authenticate,updateJob);
 router.delete("/delete-job/:id",authenticate,deleteJob);
 
 
-router.get("/get-all-jobs-student",authenticate,getAllJobsStudent);
-router.get("/get-job-by-id-student/:id",authenticate,getJobByIdStudent);
+router.get("/get-all-jobs-student",getAllJobsStudent);
+router.get("/get-job-by-id-student/:id",getJobByIdStudent);
 router.post("/apply-job",authenticate,applyJob);
 router.get("/get-applied-jobs",authenticate,getAppliedJobs);
 

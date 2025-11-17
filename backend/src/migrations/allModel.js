@@ -1,8 +1,10 @@
 // db/migrations/20250918060958_create_alumni_schema.js
 
 exports.up = function (knex) {
-  return knex.schema
-    .createTable("users", (table) => {
+  // Ensure pgcrypto is available for gen_random_uuid()
+  return knex.raw('CREATE EXTENSION IF NOT EXISTS "pgcrypto";').then(() => {
+    return knex.schema
+      .createTable("users", (table) => {
       table.uuid("id").primary().defaultTo(knex.raw("gen_random_uuid()"));
       table.string("email", 255).notNullable().unique();
       table.text("password_hash").notNullable();
@@ -71,9 +73,10 @@ exports.up = function (knex) {
         .references("id")
         .inTable("companies")
         .onDelete("CASCADE");
+      // allow null so ON DELETE SET NULL works as expected
       table
         .uuid("posted_by_alumni_id")
-        .notNullable()
+        .nullable()
         .references("id")
         .inTable("alumni_profiles")
         .onDelete("SET NULL");
@@ -95,7 +98,7 @@ exports.up = function (knex) {
         .inTable("users")
         .onDelete("CASCADE");
       table.text("resume_url");
-      table.integer("No_of_applicants").defaultTo(0);
+      table.integer("applicant_count").defaultTo(0);
       table.timestamp("applied_at").defaultTo(knex.fn.now());
       table.primary(["job_id", "user_id"]);
     })
@@ -141,6 +144,7 @@ exports.up = function (knex) {
         .notNullable()
         .defaultTo(knex.fn.now());
     });
+  });
 };
 
 exports.down = function (knex) {
@@ -153,5 +157,6 @@ exports.down = function (knex) {
     .dropTableIfExists("alumni_profiles")
     .dropTableIfExists("student_profiles")
     .dropTableIfExists("otp_verifications")
-    .dropTableIfExists("users");
+    .dropTableIfExists("users")
+    .then(() => knex.raw('DROP EXTENSION IF EXISTS "pgcrypto"'));
 };

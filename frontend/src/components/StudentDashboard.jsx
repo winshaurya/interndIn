@@ -8,33 +8,45 @@ import ApplicationHistory from "./ApplicationHistory";
 import SettingsProfile from "./SettingsProfile";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
-
-const recommendedJobs = [
-  { id: "1", title: "Junior Frontend Developer", company: "InnovaTech - New York, NY", location: "New York, NY", type: "Full-time" },
-  { id: "2", title: "Data Analyst Intern", company: "Global Insights - Remote", location: "Remote", type: "Internship" },
-  { id: "3", title: "Cloud Support Engineer", company: "CloudWorks - Seattle, WA", location: "Seattle, WA", type: "Full-time" },
-  { id: "4", title: "UI/UX Designer", company: "CreativeFlow - Austin, TX", location: "Austin, TX", type: "Contract" },
-  { id: "5", title: "Backend Developer", company: "CodeForge - San Francisco, CA", location: "San Francisco, CA", type: "Full-time" },
-  { id: "6", title: "Software Engineering Intern", company: "Apex Solutions - Boston, MA", location: "Boston, MA", type: "Internship" },
-];
+import { useQuery } from "@tanstack/react-query";
+import { apiClient } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
+import { Loader2 } from "lucide-react";
 
 export default function StudentDashboard() {
   const navigate = useNavigate();
+  const { user } = useAuth();
 
-  // ✅ Profile data state
-  const [profileData, setProfileData] = useState({
-    resumeUploaded: true,
-    experiences: ["Frontend Developer"],
-    skills: [],
-    summary: "",
+  // Fetch student profile
+  const { data: profileData, isLoading: profileLoading } = useQuery({
+    queryKey: ['student-profile'],
+    queryFn: () => apiClient.getStudentProfile(),
   });
 
-  // Progress calculation
-  const progress =
-    (profileData.resumeUploaded ? 25 : 0) +
-    (profileData.experiences.length > 0 ? 25 : 0) +
-    (profileData.skills.length >= 3 ? 25 : 0) +
-    (profileData.summary ? 25 : 0);
+  // Fetch recommended jobs
+  const { data: jobsData, isLoading: jobsLoading } = useQuery({
+    queryKey: ['jobs'],
+    queryFn: () => apiClient.getJobs(),
+  });
+
+  const profile = profileData?.data;
+  const jobs = jobsData?.data?.jobs || [];
+
+  // Progress calculation based on profile data
+  const progress = profile ? (
+    (profile.resume_url ? 25 : 0) +
+    (profile.skills && profile.skills.length > 0 ? 25 : 0) +
+    (profile.name ? 25 : 0) +
+    (profile.grad_year ? 25 : 0)
+  ) : 0;
+
+  if (profileLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -75,18 +87,16 @@ export default function StudentDashboard() {
               <h3 className="font-medium mb-2">Tasks to Complete</h3>
               <ul className="space-y-2 text-sm">
                 <li>
-                  {profileData.resumeUploaded ? "✅" : "⭕"} Upload your resume
+                  {profile?.resume_url ? "✅" : "⭕"} Upload your resume
                 </li>
                 <li>
-                  {profileData.experiences.length > 0 ? "✅" : "⭕"} Fill out work
-                  experience
+                  {profile?.name ? "✅" : "⭕"} Complete your profile
                 </li>
                 <li>
-                  {profileData.skills.length >= 3 ? "✅" : "⭕"} Add 3 key skills
+                  {profile?.skills && profile.skills.length > 0 ? "✅" : "⭕"} Add skills
                 </li>
                 <li>
-                  {profileData.summary ? "✅" : "⭕"} Write a professional
-                  summary
+                  {profile?.grad_year ? "✅" : "⭕"} Add graduation year
                 </li>
               </ul>
             </div>
@@ -128,14 +138,14 @@ export default function StudentDashboard() {
             </Button>
           </div>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {recommendedJobs.map((job) => (
+            {jobs.slice(0, 6).map((job) => (
               <JobCard
-                key={job.id}
-                id={job.id}
-                title={job.title}
-                company={job.company}
-                location={job.location}
-                type={job.type}
+                key={job.job_id}
+                id={job.job_id}
+                title={job.job_title}
+                company={job.company_name}
+                location="Remote"
+                type="Full-time"
               />
             ))}
           </div>

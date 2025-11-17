@@ -9,6 +9,7 @@ const {
   getAllUsers,
   deleteUser,
   sendNotification,
+  getDashboardStats,
 } = require("../controllers/AdminController");
 const { authenticate, isAdmin } = require("../middleware/authMiddleware");
 
@@ -42,5 +43,7 @@ router.delete("/users/:id", authenticate, isAdmin, deleteUser);
 
 // Notifications
 router.post("/notify", authenticate, isAdmin, sendNotification);
+
+router.get("/dashboard", authenticate, isAdmin, getDashboardStats);
 
 module.exports = router;

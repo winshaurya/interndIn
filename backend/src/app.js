@@ -23,8 +23,21 @@ app.listen(PORT, () => {
 
 
 // ==================== MIDDLEWARE ====================
+// CORS configuration: read allowed origins from env var `CORS_ALLOWED_ORIGINS`
+// Comma-separated list, e.g. "https://interndin.vercel.app,https://interndin-b.vercel.app,http://localhost:8080"
+const rawOrigins = process.env.CORS_ALLOWED_ORIGINS || 'http://localhost:8080,http://127.0.0.1:8080,https://interndin.vercel.app,https://interndin-b.vercel.app';
+const allowedOrigins = rawOrigins.split(',').map(s => s.trim()).filter(Boolean);
+
 app.use(cors({
-  origin: ['http://localhost:8080', 'http://127.0.0.1:8080'],
+  origin: function (origin, callback) {
+    // allow requests with no origin (like mobile apps or curl)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true
 }));
 app.use(bodyParser.json());

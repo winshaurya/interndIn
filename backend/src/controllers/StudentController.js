@@ -20,9 +20,16 @@ const getMyProfile = async (req, res) => {
     const userId = getUserIdFromReq(req);
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
-    const profile = await db("student_profiles")
-      .where({ user_id: userId })
-      .first();
+    const { data: profile, error } = await db
+      .from('student_profiles')
+      .select('*')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (error) {
+      console.error('Get profile error:', error);
+      return res.status(500).json({ error: "Internal server error" });
+    }
 
     return res.status(200).json({
       exists: !!profile,
@@ -56,9 +63,16 @@ const upsertProfile = async (req, res) => {
     const { name, studentId, branch, gradYear, skills, resumeUrl } =
       req.body || {};
 
-    const existing = await db("student_profiles")
-      .where({ user_id: userId })
-      .first();
+    const { data: existing, error: existingError } = await db
+      .from('student_profiles')
+      .select('*')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (existingError) {
+      console.error('Check existing profile error:', existingError);
+      return res.status(500).json({ error: "Internal server error" });
+    }
 
     // map camelCase -> snake_case
     const patch = {
@@ -76,10 +90,27 @@ const upsertProfile = async (req, res) => {
         return res.status(400).json({ error: "No fields provided to update" });
       }
 
-      await db("student_profiles").where({ user_id: userId }).update(patch);
-      const updated = await db("student_profiles")
-        .where({ user_id: userId })
-        .first();
+      const { error: updateError } = await db
+        .from('student_profiles')
+        .update(patch)
+        .eq('user_id', userId);
+
+      if (updateError) {
+        console.error('Update profile error:', updateError);
+        return res.status(500).json({ error: "Failed to update profile" });
+      }
+
+      const { data: updated, error: fetchError } = await db
+        .from('student_profiles')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
+
+      if (fetchError) {
+        console.error('Fetch updated profile error:', fetchError);
+        return res.status(500).json({ error: "Failed to fetch updated profile" });
+      }
+
       return res
         .status(200)
         .json({ message: "Profile updated successfully", profile: updated });
@@ -115,10 +146,26 @@ const upsertProfile = async (req, res) => {
       resume_url: resumeUrl || null,
     };
 
-    await db("student_profiles").insert(insertRow);
-    const created = await db("student_profiles")
-      .where({ user_id: userId })
-      .first();
+    const { error: insertError } = await db
+      .from('student_profiles')
+      .insert(insertRow);
+
+    if (insertError) {
+      console.error('Insert profile error:', insertError);
+      return res.status(500).json({ error: "Failed to create profile" });
+    }
+
+    const { data: created, error: fetchCreatedError } = await db
+      .from('student_profiles')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+
+    if (fetchCreatedError) {
+      console.error('Fetch created profile error:', fetchCreatedError);
+      return res.status(500).json({ error: "Failed to fetch created profile" });
+    }
+
     return res
       .status(201)
       .json({ message: "Profile created successfully", profile: created });

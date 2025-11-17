@@ -1,8 +1,15 @@
 import { Users, Building2, FileText, ClipboardList } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { apiClient } from "@/lib/api";
 import { StatCard } from "@/components/admin/StatCard";
 import { UserManagement } from "@/components/admin/UserManagement";
 
 export default function AdminDashboard() {
+  const { data: stats, isLoading } = useQuery({
+    queryKey: ['admin-dashboard'],
+    queryFn: () => apiClient.request('/admin/dashboard'),
+  });
+
   return (
     <div className="min-h-screen bg-background">
       <div className="flex-1 space-y-8 p-8">
@@ -20,25 +27,25 @@ export default function AdminDashboard() {
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
           <StatCard
             title="New Users"
-            value="640"
+            value={isLoading ? "..." : stats?.newUsers || 0}
             icon={Users}
             variant="default"
           />
           <StatCard
             title="Active Companies"
-            value="92"
+            value={isLoading ? "..." : stats?.activeCompanies || 0}
             icon={Building2}
             variant="success"
           />
           <StatCard
             title="Live Postings"
-            value="134"
+            value={isLoading ? "..." : stats?.livePostings || 0}
             icon={FileText}
             variant="warning"
           />
           <StatCard
             title="Applications"
-            value="480"
+            value={isLoading ? "..." : stats?.applicationsToday || 0}
             subtitle="Today"
             icon={ClipboardList}
             variant="default"
