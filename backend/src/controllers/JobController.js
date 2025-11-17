@@ -1,6 +1,5 @@
 // const asyncHandler = require("express-async-handler");
 // const Job = require("../models/Job");
-const knex = require("../config/db");
 const db = require("../config/db");
 
 //alumni jobs section
@@ -11,10 +10,16 @@ exports.postJob = async (req, res) => {
       return res.status(401).json({ error: "Unauthenticated user." });
 
     // 1) Alumni profile by user
-    const profile = await db("alumni_profiles")
-      .select("id", "grad_year", "current_title")
-      .where({ user_id: userId })
-      .first();
+    const { data: profile, error: profileError } = await db
+      .from('alumni_profiles')
+      .select('id, grad_year, current_title')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (profileError) {
+      console.error('Profile fetch error:', profileError);
+      return res.status(500).json({ error: "Failed to fetch profile" });
+    }
 
     if (!profile) {
       return res.status(400).json({
@@ -23,18 +28,16 @@ exports.postJob = async (req, res) => {
     }
 
     // 2) Company for that alumni (companies PK = alumni_id)
-    const company = await db("companies")
-      .select(
-        "id",
-        "alumni_id",
-        "document_url",
-        "about",
-        "name",
-        "website",
-        "status"
-      )
-      .where({ alumni_id: profile.id })
-      .first();
+    const { data: company, error: companyError } = await db
+      .from('companies')
+      .select('id, alumni_id, document_url, about, name, website, status')
+      .eq('alumni_id', profile.id)
+      .maybeSingle();
+
+    if (companyError) {
+      console.error('Company fetch error:', companyError);
+      return res.status(500).json({ error: "Failed to fetch company" });
+    }
 
     if (!company) {
       return res.status(400).json({
@@ -69,13 +72,20 @@ exports.postJob = async (req, res) => {
     console.log("USEr ROLE:", role);
 
     // 5) Insert job
-    await db("jobs").insert({
-      company_id: company.id, // ✅ references companies.alumni_id
-      posted_by_alumni_id: profile.id, // ✅ references alumni_profiles.id
-      job_title,
-      job_description,
-      created_at: db.fn.now(),
-    });
+    const { error: insertError } = await db
+      .from('jobs')
+      .insert({
+        company_id: company.id, // ✅ references companies.alumni_id
+        posted_by_alumni_id: profile.id, // ✅ references alumni_profiles.id
+        job_title,
+        job_description,
+        created_at: new Date().toISOString(),
+      });
+
+    if (insertError) {
+      console.error('Job insert error:', insertError);
+      return res.status(500).json({ error: "Failed to post job" });
+    }
 
     return res.json({ message: "Job posted successfully" });
   } catch (error) {
@@ -91,10 +101,16 @@ exports.getMyJobs = async (req, res) => {
       return res.status(401).json({ error: "Unauthenticated user." });
 
     // 1️⃣ Find the alumni profile linked to this user
-    const profile = await db("alumni_profiles")
-      .select("id")
-      .where({ user_id: userId })
-      .first();
+    const { data: profile, error: profileError } = await db
+      .from('alumni_profiles')
+      .select('id')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (profileError) {
+      console.error('Profile fetch error:', profileError);
+      return res.status(500).json({ error: "Failed to fetch profile" });
+    }
 
     if (!profile) {
       return res
@@ -103,9 +119,16 @@ exports.getMyJobs = async (req, res) => {
     }
 
     // 2️⃣ Fetch jobs posted by this alumni
-    const jobs = await db("jobs")
-      .where({ posted_by_alumni_id: profile.id })
-      .orderBy("created_at", "desc");
+    const { data: jobs, error: jobsError } = await db
+      .from('jobs')
+      .select('*')
+      .eq('posted_by_alumni_id', profile.id)
+      .order('created_at', { ascending: false });
+
+    if (jobsError) {
+      console.error('Jobs fetch error:', jobsError);
+      return res.status(500).json({ error: "Failed to fetch jobs" });
+    }
 
     // 3️⃣ Return jobs
     return res.status(200).json({
@@ -129,10 +152,16 @@ exports.getJobById = async (req, res) => {
     }
 
     // 1️⃣ Find the alumni profile for this user
-    const profile = await db("alumni_profiles")
-      .select("id")
-      .where({ user_id: userId })
-      .first();
+    const { data: profile, error: profileError } = await db
+      .from('alumni_profiles')
+      .select('id')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (profileError) {
+      console.error('Profile fetch error:', profileError);
+      return res.status(500).json({ error: "Failed to fetch profile" });
+    }
 
     if (!profile) {
       return res
@@ -141,22 +170,33 @@ exports.getJobById = async (req, res) => {
     }
 
     // 2️⃣ Fetch the job only if it belongs to this alumni
-    const job = await db("jobs")
-      .where({
-        id,
-        posted_by_alumni_id: profile.id,
-      })
-      .first();
+    const { data: job, error: jobError } = await db
+      .from('jobs')
+      .select('*')
+      .eq('id', id)
+      .eq('posted_by_alumni_id', profile.id)
+      .maybeSingle();
+
+    if (jobError) {
+      console.error('Job fetch error:', jobError);
+      return res.status(500).json({ error: "Failed to fetch job" });
+    }
 
     if (!job) {
       return res.status(404).json({ error: "Job not found or unauthorized." });
     }
 
     // 3️⃣ Optionally, fetch related company info
-    const company = await db("companies")
-      .select("id", "name", "website", "about")
-      .where({ id: job.company_id })
-      .first();
+    const { data: company, error: companyError } = await db
+      .from('companies')
+      .select('id, name, website, about')
+      .eq('id', job.company_id)
+      .maybeSingle();
+
+    if (companyError) {
+      console.error('Company fetch error:', companyError);
+      return res.status(500).json({ error: "Failed to fetch company" });
+    }
 
     return res.status(200).json({
       success: true,
@@ -181,10 +221,16 @@ exports.updateJob = async (req, res) => {
     }
 
     // 1️⃣ Find alumni profile for this user
-    const profile = await db("alumni_profiles")
-      .select("id")
-      .where({ user_id: userId })
-      .first();
+    const { data: profile, error: profileError } = await db
+      .from('alumni_profiles')
+      .select('id')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (profileError) {
+      console.error('Profile fetch error:', profileError);
+      return res.status(500).json({ error: "Failed to fetch profile" });
+    }
 
     if (!profile) {
       return res
@@ -206,9 +252,17 @@ exports.updateJob = async (req, res) => {
     }
 
     // 3️⃣ Ensure this job belongs to the logged-in alumni
-    const job = await db("jobs")
-      .where({ id, posted_by_alumni_id: profile.id })
-      .first();
+    const { data: job, error: jobError } = await db
+      .from('jobs')
+      .select('*')
+      .eq('id', id)
+      .eq('posted_by_alumni_id', profile.id)
+      .maybeSingle();
+
+    if (jobError) {
+      console.error('Job fetch error:', jobError);
+      return res.status(500).json({ error: "Failed to fetch job" });
+    }
 
     if (!job) {
       return res
@@ -217,9 +271,15 @@ exports.updateJob = async (req, res) => {
     }
 
     // 4️⃣ Update job record
-    await db("jobs")
-      .where({ id })
-      .update(updateData);
+    const { error: updateError } = await db
+      .from('jobs')
+      .update(updateData)
+      .eq('id', id);
+
+    if (updateError) {
+      console.error('Job update error:', updateError);
+      return res.status(500).json({ error: "Failed to update job" });
+    }
 
     return res.status(200).json({ message: "Job updated successfully" });
   } catch (err) {
@@ -238,22 +298,31 @@ exports.deleteJob = async (req, res) => {
     }
 
     // 1) Get this user's alumni profile (jobs use alumni_profiles.id)
-    const profile = await db("alumni_profiles")
-      .select("id")
-      .where({ user_id: userId })
-      .first();
+    const { data: profile, error: profileError } = await db
+      .from('alumni_profiles')
+      .select('id')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (profileError) {
+      console.error('Profile fetch error:', profileError);
+      return res.status(500).json({ error: "Failed to fetch profile" });
+    }
 
     if (!profile) {
       return res.status(400).json({ error: "Alumni profile not found for this user." });
     }
 
     // 2) Delete only if the job belongs to this alumni
-    const deleted = await db("jobs")
-      .where({ id, posted_by_alumni_id: profile.id })
-      .del();
+    const { error: deleteError } = await db
+      .from('jobs')
+      .delete()
+      .eq('id', id)
+      .eq('posted_by_alumni_id', profile.id);
 
-    if (!deleted) {
-      return res.status(404).json({ error: "Job not found or unauthorized to delete." });
+    if (deleteError) {
+      console.error('Job delete error:', deleteError);
+      return res.status(500).json({ error: "Failed to delete job" });
     }
 
     return res.status(200).json({ message: "Job deleted successfully" });
@@ -270,27 +339,48 @@ exports.deleteJob = async (req, res) => {
 exports.getAllJobsStudent = async (req, res) => {
   try {
     // ✅ Fetch all jobs, joining with company & alumni info for context
-    const jobs = await db("jobs as j")
-      .leftJoin("companies as c", "j.company_id", "c.id")
-      .leftJoin("alumni_profiles as a", "j.posted_by_alumni_id", "a.id")
-      .select(
-        "j.id as job_id",
-        "j.job_title",
-        "j.job_description",
-        "j.created_at",
-        "c.name as company_name",
-        "c.website as company_website",
-        "c.about as company_about",
-        "a.name as alumni_name",
-        "a.current_title as alumni_designation",
-        "a.grad_year as alumni_grad_year"
-      )
-      .orderBy("j.created_at", "desc");
+    const { data: jobs, error: jobsError } = await db
+      .from('jobs')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (jobsError) {
+      console.error('Jobs fetch error:', jobsError);
+      return res.status(500).json({ error: "Failed to fetch jobs" });
+    }
+
+    // Enrich with company and alumni info
+    const enrichedJobs = await Promise.all(jobs.map(async (job) => {
+      const { data: company, error: companyError } = await db
+        .from('companies')
+        .select('name, website, about')
+        .eq('id', job.company_id)
+        .maybeSingle();
+
+      const { data: alumni, error: alumniError } = await db
+        .from('alumni_profiles')
+        .select('name, current_title, grad_year')
+        .eq('id', job.posted_by_alumni_id)
+        .maybeSingle();
+
+      return {
+        job_id: job.id,
+        job_title: job.job_title,
+        job_description: job.job_description,
+        created_at: job.created_at,
+        company_name: company?.name,
+        company_website: company?.website,
+        company_about: company?.about,
+        alumni_name: alumni?.name,
+        alumni_designation: alumni?.current_title,
+        alumni_grad_year: alumni?.grad_year,
+      };
+    }));
 
     return res.status(200).json({
       success: true,
-      count: jobs.length,
-      jobs,
+      count: enrichedJobs.length,
+      jobs: enrichedJobs,
     });
   } catch (err) {
     console.error("getAllJobsStudent error:", err);
@@ -303,35 +393,54 @@ exports.getJobByIdStudent = async (req, res) => {
     const { id } = req.params;
 
     // 1️⃣ Fetch job + company + alumni details
-    const job = await db("jobs as j")
-      .leftJoin("companies as c", "j.company_id", "c.id")
-      .leftJoin("alumni_profiles as a", "j.posted_by_alumni_id", "a.id")
-      .select(
-        "j.id as job_id",
-        "j.job_title",
-        "j.job_description",
-        "j.created_at",
-        "c.id as company_id",
-        "c.name as company_name",
-        "c.website as company_website",
-        "c.about as company_about",
-        "a.id as alumni_profile_id",
-        "a.name as alumni_name",
-        "a.current_title as alumni_designation",
-        "a.grad_year as alumni_grad_year"
-      )
-      .where("j.id", id)
-      .first();
+    const { data: job, error: jobError } = await db
+      .from('jobs')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (jobError) {
+      console.error('Job fetch error:', jobError);
+      return res.status(500).json({ error: "Failed to fetch job" });
+    }
 
     // 2️⃣ Handle missing job
     if (!job) {
       return res.status(404).json({ error: "Job not found" });
     }
 
+    // Fetch company and alumni
+    const { data: company, error: companyError } = await db
+      .from('companies')
+      .select('id, name, website, about')
+      .eq('id', job.company_id)
+      .maybeSingle();
+
+    const { data: alumni, error: alumniError } = await db
+      .from('alumni_profiles')
+      .select('id, name, current_title, grad_year')
+      .eq('id', job.posted_by_alumni_id)
+      .maybeSingle();
+
+    const enrichedJob = {
+      job_id: job.id,
+      job_title: job.job_title,
+      job_description: job.job_description,
+      created_at: job.created_at,
+      company_id: company?.id,
+      company_name: company?.name,
+      company_website: company?.website,
+      company_about: company?.about,
+      alumni_profile_id: alumni?.id,
+      alumni_name: alumni?.name,
+      alumni_designation: alumni?.current_title,
+      alumni_grad_year: alumni?.grad_year,
+    };
+
     // 3️⃣ Send result
     return res.status(200).json({
       success: true,
-      job,
+      job: enrichedJob,
     });
   } catch (err) {
     console.error("getJobByIdStudent error:", err);
@@ -348,55 +457,93 @@ exports.applyJob = async (req, res) => {
   if (!job_id) return res.status(400).json({ error: "job_id is required" });
 
   try {
-    await db.transaction(async (trx) => {
-      // 1) Ensure the job exists
-      const job = await trx("jobs").select("id").where({ id: job_id }).first();
-      if (!job) throw { status: 404, message: "Job not found" };
+    // 1) Ensure the job exists
+    const { data: job, error: jobError } = await db
+      .from('jobs')
+      .select('id')
+      .eq('id', job_id)
+      .maybeSingle();
 
-      // 2) Capacity check based on current applications count
-      const countRow = await trx("job_applications")
-        .where({ job_id })
-        .count("* as c")
-        .first();
-      const currentCount = Number(countRow?.c || 0);
-      if (currentCount >= 50) {
-        throw { status: 400, message: "Applications are closed for this job (capacity reached)." };
-      }
+    if (jobError) {
+      console.error('Job check error:', jobError);
+      return res.status(500).json({ error: "Server error" });
+    }
 
-      // 3) Prevent duplicate application by same user
-      const already = await trx("job_applications")
-        .where({ job_id, user_id: userId })
-        .first();
-      if (already) throw { status: 400, message: "Already applied for this job" };
+    if (!job) throw { status: 404, message: "Job not found" };
 
-      // 4) Insert the application
-      await trx("job_applications").insert({
+    // 2) Capacity check based on current applications count
+    const { count: currentCount, error: countError } = await db
+      .from('job_applications')
+      .select('*', { count: 'exact', head: true })
+      .eq('job_id', job_id);
+
+    if (countError) {
+      console.error('Count error:', countError);
+      return res.status(500).json({ error: "Server error" });
+    }
+
+    if (currentCount >= 50) {
+      return res.status(400).json({ error: "Applications are closed for this job (capacity reached)." });
+    }
+
+    // 3) Prevent duplicate application by same user
+    const { data: already, error: alreadyError } = await db
+      .from('job_applications')
+      .select('*')
+      .eq('job_id', job_id)
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (alreadyError) {
+      console.error('Duplicate check error:', alreadyError);
+      return res.status(500).json({ error: "Server error" });
+    }
+
+    if (already) return res.status(400).json({ error: "Already applied for this job" });
+
+    // 4) Insert the application
+    const { error: insertError } = await db
+      .from('job_applications')
+      .insert({
         job_id,
         user_id: userId,
         resume_url,
-        applied_at: trx.fn.now(),
+        applied_at: new Date().toISOString(),
       });
 
-      // 5) Recompute + write back the total into job_applications.applicant_count
-      const newCountRow = await trx("job_applications")
-        .where({ job_id })
-        .count("* as c")
-        .first();
-      const newCount = Number(newCountRow?.c || 0);
+    if (insertError) {
+      console.error('Insert application error:', insertError);
+      if (insertError.code === '23505') {
+        return res.status(409).json({ error: "Already applied for this job" });
+      }
+      return res.status(500).json({ error: "Server error" });
+    }
 
-      // Use raw to be safe with the column name
-      await trx.raw(
-        'UPDATE job_applications SET applicant_count = ? WHERE job_id = ?',
-        [newCount, job_id]
-      );
-    });
+    // 5) Recompute + write back the total into job_applications.applicant_count
+    const { count: newCount, error: newCountError } = await db
+      .from('job_applications')
+      .select('*', { count: 'exact', head: true })
+      .eq('job_id', job_id);
+
+    if (newCountError) {
+      console.error('New count error:', newCountError);
+      // Continue, as application is inserted
+    }
+
+    // Update applicant_count for all rows of that job
+    const { error: updateError } = await db
+      .from('job_applications')
+      .update({ applicant_count: newCount })
+      .eq('job_id', job_id);
+
+    if (updateError) {
+      console.error('Update count error:', updateError);
+      // Continue
+    }
 
     return res.status(201).json({ message: "Job application submitted" });
   } catch (err) {
     if (err && err.status) return res.status(err.status).json({ error: err.message });
-    if (err && err.code === "23505") {
-      return res.status(409).json({ error: "Already applied for this job" });
-    }
     console.error("applyJob error:", err);
     return res.status(500).json({ error: "Server error while applying to job" });
   }
