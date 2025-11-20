@@ -68,9 +68,6 @@ exports.postJob = async (req, res) => {
         .json({ error: "job_title and job_description are required." });
     }
 
-    const role = req.user?.role || roleToAssign;
-    console.log("USEr ROLE:", role);
-
     // 5) Insert job
     const { error: insertError } = await db
       .from('jobs')
@@ -79,7 +76,6 @@ exports.postJob = async (req, res) => {
         posted_by_alumni_id: profile.id, // ✅ references alumni_profiles.id
         job_title,
         job_description,
-        created_at: new Date().toISOString(),
       });
 
     if (insertError) {
@@ -556,28 +552,23 @@ exports.getAppliedJobs = async (req, res) => {
       return res.status(401).json({ error: "Unauthenticated user." });
     }
 
-    const rows = await db("job_applications as ja")
-      .join("jobs as j", "ja.job_id", "j.id")
-      .leftJoin("companies as c", "j.company_id", "c.id")
+    const { data, error } = await db
+      .from('job_applications')
       .select(
-        "ja.job_id",
-        "ja.user_id",
-        "ja.resume_url",
-        db.raw('ja.applicant_count as no_of_applicants'),
-        "ja.applied_at",
-        "j.job_title",
-        "j.job_description",
-        "j.created_at as job_created_at",
-        "c.name as company_name",
-        "c.website as company_website"
+        `job_id,user_id,resume_url,applicant_count,applied_at,jobs(job_title,job_description,created_at,companies(name,website))`
       )
-      .where("ja.user_id", userId)
-      .orderBy("ja.applied_at", "desc");
+      .eq('user_id', userId)
+      .order('applied_at', { ascending: false });
+
+    if (error) {
+      console.error('getAppliedJobs query error:', error);
+      return res.status(500).json({ error: "Server error while fetching applied jobs" });
+    }
 
     return res.status(200).json({
       success: true,
-      count: rows.length,
-      applications: rows,
+      count: data?.length || 0,
+      applications: data || [],
     });
   } catch (err) {
     console.error("getAppliedJobs error:", err);
@@ -593,41 +584,52 @@ exports.getAppliedJobs = async (req, res) => {
 exports.withdrawApplication = async (req, res) => {
   try {
     const userId = req.user?.userId ?? req.user?.id;
-    const { job_id } = req.params; // we'll withdraw by job_id instead of applicationId
+    const { job_id } = req.params;
 
     if (!userId) {
       return res.status(401).json({ error: "Unauthenticated user." });
     }
 
-    // 1️⃣ Find the application
-    const application = await db("job_applications")
-      .where({ job_id, user_id: userId })
-      .first();
+    const { data: application, error: fetchError } = await db
+      .from('job_applications')
+      .select('job_id')
+      .eq('job_id', job_id)
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (fetchError) {
+      console.error('withdrawApplication fetch error:', fetchError);
+      return res.status(500).json({ error: "Failed to fetch application" });
+    }
 
     if (!application) {
       return res.status(404).json({ error: "Application not found" });
     }
 
-    // 2️⃣ Start a transaction for consistency
-    await db.transaction(async (trx) => {
-      // Delete the application
-      await trx("job_applications")
-        .where({ job_id, user_id: userId })
-        .del();
+    const { error: deleteError } = await db
+      .from('job_applications')
+      .delete()
+      .eq('job_id', job_id)
+      .eq('user_id', userId);
 
-      // 3️⃣ Recount remaining applicants for that job
-      const countRow = await trx("job_applications")
-        .where({ job_id })
-        .count("* as c")
-        .first();
-      const updatedCount = Number(countRow?.c || 0);
+    if (deleteError) {
+      console.error('withdrawApplication delete error:', deleteError);
+      return res.status(500).json({ error: "Failed to withdraw application" });
+    }
 
-      // 4️⃣ Update the applicant_count column for all remaining rows of that job
-      await trx.raw(
-        'UPDATE job_applications SET applicant_count = ? WHERE job_id = ?',
-        [updatedCount, job_id]
-      );
-    });
+    const { count, error: countError } = await db
+      .from('job_applications')
+      .select('job_id', { count: 'exact', head: true })
+      .eq('job_id', job_id);
+
+    if (countError) {
+      console.error('withdrawApplication count error:', countError);
+    } else {
+      await db
+        .from('job_applications')
+        .update({ applicant_count: count ?? 0 })
+        .eq('job_id', job_id);
+    }
 
     res.status(200).json({ message: "Application withdrawn successfully" });
   } catch (err) {
@@ -650,20 +652,32 @@ exports.viewApplicants = async (req, res) => {
     // Authorization (admin bypass)
     // ---------------------------
     if (role === "alumni") {
-      // get this user's alumni_profile id
-      const profile = await db("alumni_profiles")
-        .select("id")
-        .where({ user_id: userId })
-        .first();
+      const { data: profile, error: profileError } = await db
+        .from('alumni_profiles')
+        .select('id')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (profileError) {
+        console.error('viewApplicants profile error:', profileError);
+        return res.status(500).json({ error: "Server error" });
+      }
 
       if (!profile) {
         return res.status(400).json({ error: "Alumni profile not found for this user." });
       }
 
-      // verify the job is posted by this alumni
-      const ownsJob = await db("jobs")
-        .where({ id: jobId, posted_by_alumni_id: profile.id })
-        .first();
+      const { data: ownsJob, error: ownsJobError } = await db
+        .from('jobs')
+        .select('id')
+        .eq('id', jobId)
+        .eq('posted_by_alumni_id', profile.id)
+        .maybeSingle();
+
+      if (ownsJobError) {
+        console.error('viewApplicants job check error:', ownsJobError);
+        return res.status(500).json({ error: "Server error" });
+      }
 
       if (!ownsJob) {
         return res
@@ -679,32 +693,32 @@ exports.viewApplicants = async (req, res) => {
     // ---------------------------
     // Fetch applicants
     // ---------------------------
-    const applicants = await db("job_applications as ja")
-      .join("users as u", "ja.user_id", "u.id")
-      .leftJoin("student_profiles as sp", "sp.user_id", "u.id")
-      .select(
-        "ja.job_id",
-        "ja.user_id as student_user_id",
-        "ja.resume_url",
-        db.raw('ja.applicant_count as no_of_applicants'), // renamed column
-        "ja.applied_at",
-        "u.email as student_email",
-        "sp.name as student_name",
-        "sp.branch as student_branch",
-        "sp.grad_year as student_grad_year"
-      )
-      .where("ja.job_id", jobId)
-      .orderBy("ja.applied_at", "desc");
+    const { data: applicants, error: applicantsError } = await db
+      .from('job_applications')
+      .select(`
+        job_id,
+        user_id,
+        resume_url,
+        applicant_count,
+        applied_at,
+        users!inner(email),
+        student_profiles!inner(name, branch, grad_year)
+      `)
+      .eq('job_id', jobId)
+      .order('applied_at', { ascending: false });
+
+    if (applicantsError) {
+      console.error('viewApplicants query error:', applicantsError);
+      return res.status(500).json({ error: "Server error" });
+    }
 
     return res.status(200).json({
       success: true,
-      count: applicants.length,
-      applicants,
+      count: applicants?.length || 0,
+      applicants: applicants || [],
     });
   } catch (err) {
     console.error("View applicants error:", err);
     return res.status(500).json({ error: "Server error" });
   }
 };
-
-

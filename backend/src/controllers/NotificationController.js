@@ -1,18 +1,29 @@
 // src/controllers/NotificationController.js
 const db = require("../config/db");
 
+const getUserId = (req) => req.user?.userId ?? req.user?.id;
+const nowIso = () => new Date().toISOString();
+
 // ================== Notifications ==================
 
 // GET /notifications - Get own notifications
 exports.getNotifications = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = getUserId(req);
 
-    const notifications = await db("notifications")
-      .where({ user_id: userId })
-      .orderBy("created_at", "desc");
+    if (!userId) {
+      return res.status(401).json({ success: false, message: "Unauthenticated" });
+    }
 
-    res.json({ success: true, data: notifications });
+    const { data, error } = await db
+      .from("notifications")
+      .select("*")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false });
+
+    if (error) throw error;
+
+    res.json({ success: true, data: data || [] });
   } catch (error) {
     console.error("Error fetching notifications:", error);
     res.status(500).json({ success: false, message: "Server error" });
@@ -23,11 +34,20 @@ exports.getNotifications = async (req, res) => {
 exports.markNotificationRead = async (req, res) => {
   try {
     const { id } = req.params;
-    const userId = req.user.id;
+    const userId = getUserId(req);
 
-    const notification = await db("notifications")
-      .where({ id, user_id: userId })
-      .first();
+    if (!userId) {
+      return res.status(401).json({ success: false, message: "Unauthenticated" });
+    }
+
+    const { data: notification, error: fetchError } = await db
+      .from("notifications")
+      .select("id")
+      .eq("id", id)
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (fetchError) throw fetchError;
 
     if (!notification) {
       return res
@@ -35,9 +55,12 @@ exports.markNotificationRead = async (req, res) => {
         .json({ success: false, message: "Notification not found" });
     }
 
-    await db("notifications")
-      .where({ id })
-      .update({ is_read: true, updated_at: new Date() });
+    const { error } = await db
+      .from("notifications")
+      .update({ is_read: true, updated_at: nowIso() })
+      .eq("id", id);
+
+    if (error) throw error;
 
     res.json({ success: true, message: "Notification marked as read" });
   } catch (error) {
@@ -50,11 +73,20 @@ exports.markNotificationRead = async (req, res) => {
 exports.deleteNotification = async (req, res) => {
   try {
     const { id } = req.params;
-    const userId = req.user.id;
+    const userId = getUserId(req);
 
-    const notification = await db("notifications")
-      .where({ id, user_id: userId })
-      .first();
+    if (!userId) {
+      return res.status(401).json({ success: false, message: "Unauthenticated" });
+    }
+
+    const { data: notification, error: fetchError } = await db
+      .from("notifications")
+      .select("id")
+      .eq("id", id)
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (fetchError) throw fetchError;
 
     if (!notification) {
       return res
@@ -62,7 +94,12 @@ exports.deleteNotification = async (req, res) => {
         .json({ success: false, message: "Notification not found" });
     }
 
-    await db("notifications").where({ id }).del();
+    const { error } = await db
+      .from("notifications")
+      .delete()
+      .eq("id", id);
+
+    if (error) throw error;
 
     res.json({ success: true, message: "Notification deleted successfully" });
   } catch (error) {

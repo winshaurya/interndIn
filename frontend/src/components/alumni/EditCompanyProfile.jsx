@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ArrowLeft, ChevronDown, ChevronUp, Plus, Trash2, Upload } from "lucide-react";
+import { ChevronDown, ChevronUp, Plus, Trash2, Upload } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -121,32 +121,19 @@ export function EditCompanyProfile() {
   const progress = calculateProgress();
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <div className="border-b bg-card">
-        <div className="flex items-center justify-between p-6">
-          <div className="flex items-center gap-4">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => navigate("/alumni/company-profile")}
-            >
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-            <h1 className="text-2xl font-semibold">Edit Company Profile</h1>
-          </div>
-          <div className="flex gap-3">
-            <Button variant="outline" onClick={() => navigate("/alumni/company-profile")}>
-              Cancel
-            </Button>
-            <Button onClick={handleSave}>
-              Save Changes
-            </Button>
-          </div>
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card p-4">
+        <div>
+          <h1 className="text-xl font-semibold">Edit company profile</h1>
+          <p className="text-sm text-muted-foreground">Keep company basics aligned before students explore your brand.</p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => navigate("/alumni/company-profile")}>Cancel</Button>
+          <Button onClick={handleSave}>Save changes</Button>
         </div>
       </div>
 
-      <div className="max-w-4xl mx-auto p-6 space-y-6">
+      <div className="space-y-6 max-w-5xl mx-auto">
         {/* Progress Bar */}
         <Card>
           <CardContent className="p-6">

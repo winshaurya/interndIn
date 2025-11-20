@@ -1,0 +1,511 @@
+import { supabase } from './supabase'
+
+// ==================== AUTH HELPERS ====================
+export const getCurrentUserId = async () => {
+  const { data: { user }, error } = await supabase.auth.getUser()
+  if (error) throw error
+  return user?.id
+}
+
+// ==================== USER PROFILE OPERATIONS ====================
+export const getUserProfile = async (userId) => {
+  const { data, error } = await supabase
+    .from('users')
+    .select('*')
+    .eq('id', userId)
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+export const updateUserProfile = async (userId, updates) => {
+  const { data, error } = await supabase
+    .from('users')
+    .update(updates)
+    .eq('id', userId)
+    .select()
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+// ==================== STUDENT OPERATIONS ====================
+export const getStudentProfile = async (userId) => {
+  const { data, error } = await supabase
+    .from('student_profiles')
+    .select('*')
+    .eq('user_id', userId)
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+export const updateStudentProfile = async (userId, updates) => {
+  const { data, error } = await supabase
+    .from('student_profiles')
+    .update(updates)
+    .eq('user_id', userId)
+    .select()
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+export const createStudentProfile = async (profileData) => {
+  const { data, error } = await supabase
+    .from('student_profiles')
+    .insert(profileData)
+    .select()
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+// ==================== ALUMNI OPERATIONS ====================
+export const getAlumniProfile = async (userId) => {
+  const { data, error } = await supabase
+    .from('alumni_profiles')
+    .select('*')
+    .eq('user_id', userId)
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+export const updateAlumniProfile = async (userId, updates) => {
+  const { data, error } = await supabase
+    .from('alumni_profiles')
+    .update(updates)
+    .eq('user_id', userId)
+    .select()
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+export const createAlumniProfile = async (profileData) => {
+  const { data, error } = await supabase
+    .from('alumni_profiles')
+    .insert(profileData)
+    .select()
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+// ==================== COMPANY OPERATIONS ====================
+export const getCompany = async (alumniId) => {
+  const { data, error } = await supabase
+    .from('companies')
+    .select('*')
+    .eq('alumni_id', alumniId)
+    .single()
+
+  if (error && error.code !== 'PGRST116') throw error // PGRST116 is "not found"
+  return data
+}
+
+export const createCompany = async (companyData) => {
+  const { data, error } = await supabase
+    .from('companies')
+    .insert(companyData)
+    .select()
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+export const updateCompany = async (companyId, updates) => {
+  const { data, error } = await supabase
+    .from('companies')
+    .update(updates)
+    .eq('id', companyId)
+    .select()
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+export const getAllCompanies = async () => {
+  const { data, error } = await supabase
+    .from('companies')
+    .select('*')
+    .order('created_at', { ascending: false })
+
+  if (error) throw error
+  return data
+}
+
+// ==================== JOB OPERATIONS ====================
+export const createJob = async (jobData) => {
+  const { data, error } = await supabase
+    .from('jobs')
+    .insert(jobData)
+    .select()
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+export const getJobsByAlumni = async (alumniId) => {
+  const { data, error } = await supabase
+    .from('jobs')
+    .select('*')
+    .eq('posted_by_alumni_id', alumniId)
+    .order('created_at', { ascending: false })
+
+  if (error) throw error
+  return data
+}
+
+export const getJobById = async (jobId) => {
+  const { data, error } = await supabase
+    .from('jobs')
+    .select('*')
+    .eq('id', jobId)
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+export const updateJob = async (jobId, updates) => {
+  const { data, error } = await supabase
+    .from('jobs')
+    .update(updates)
+    .eq('id', jobId)
+    .select()
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+export const deleteJob = async (jobId) => {
+  const { error } = await supabase
+    .from('jobs')
+    .delete()
+    .eq('id', jobId)
+
+  if (error) throw error
+}
+
+export const getAllJobs = async () => {
+  const { data, error } = await supabase
+    .from('jobs')
+    .select(`
+      *,
+      companies (
+        name,
+        website,
+        about
+      ),
+      alumni_profiles (
+        name,
+        current_title,
+        grad_year
+      )
+    `)
+    .order('created_at', { ascending: false })
+
+  if (error) throw error
+  return data
+}
+
+export const getJobDetails = async (jobId) => {
+  const { data, error } = await supabase
+    .from('jobs')
+    .select(`
+      *,
+      companies (
+        id,
+        name,
+        website,
+        about
+      ),
+      alumni_profiles (
+        id,
+        name,
+        current_title,
+        grad_year
+      )
+    `)
+    .eq('id', jobId)
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+// ==================== JOB APPLICATION OPERATIONS ====================
+export const applyForJob = async (applicationData) => {
+  const { data, error } = await supabase
+    .from('job_applications')
+    .insert(applicationData)
+    .select()
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+export const getAppliedJobs = async (userId) => {
+  const { data, error } = await supabase
+    .from('job_applications')
+    .select(`
+      *,
+      jobs (
+        job_title,
+        job_description,
+        created_at,
+        companies (
+          name,
+          website
+        )
+      )
+    `)
+    .eq('user_id', userId)
+    .order('applied_at', { ascending: false })
+
+  if (error) throw error
+  return data
+}
+
+export const getJobApplicants = async (jobId) => {
+  const { data, error } = await supabase
+    .from('job_applications')
+    .select(`
+      *,
+      users (
+        email
+      ),
+      student_profiles (
+        name,
+        branch,
+        grad_year
+      )
+    `)
+    .eq('job_id', jobId)
+    .order('applied_at', { ascending: false })
+
+  if (error) throw error
+  return data
+}
+
+export const withdrawApplication = async (jobId, userId) => {
+  const { error } = await supabase
+    .from('job_applications')
+    .delete()
+    .eq('job_id', jobId)
+    .eq('user_id', userId)
+
+  if (error) throw error
+}
+
+// ==================== CONNECTION OPERATIONS ====================
+export const sendConnectionRequest = async (requestData) => {
+  const { data, error } = await supabase
+    .from('connections')
+    .insert(requestData)
+    .select()
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+export const acceptConnectionRequest = async (connectionId) => {
+  const { data, error } = await supabase
+    .from('connections')
+    .update({
+      status: 'accepted',
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', connectionId)
+    .select()
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+export const rejectConnectionRequest = async (connectionId) => {
+  const { data, error } = await supabase
+    .from('connections')
+    .update({
+      status: 'rejected',
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', connectionId)
+    .select()
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+export const getConnections = async (userId) => {
+  const { data, error } = await supabase
+    .from('connections')
+    .select('*')
+    .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
+    .order('created_at', { ascending: false })
+
+  if (error) throw error
+  return data
+}
+
+// ==================== MESSAGE OPERATIONS ====================
+export const sendMessage = async (messageData) => {
+  const { data, error } = await supabase
+    .from('messages')
+    .insert(messageData)
+    .select()
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+export const getMessages = async (connectionId) => {
+  const { data, error } = await supabase
+    .from('messages')
+    .select('*')
+    .eq('connection_id', connectionId)
+    .order('created_at', { ascending: true })
+
+  if (error) throw error
+  return data
+}
+
+export const markMessageAsRead = async (messageId) => {
+  const { data, error } = await supabase
+    .from('messages')
+    .update({ is_read: true })
+    .eq('id', messageId)
+    .select()
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+// ==================== NOTIFICATION OPERATIONS ====================
+export const getNotifications = async (userId) => {
+  const { data, error } = await supabase
+    .from('notifications')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+
+  if (error) throw error
+  return data
+}
+
+export const markNotificationAsRead = async (notificationId) => {
+  const { data, error } = await supabase
+    .from('notifications')
+    .update({ is_read: true })
+    .eq('id', notificationId)
+    .select()
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+export const createNotification = async (notificationData) => {
+  const { data, error } = await supabase
+    .from('notifications')
+    .insert(notificationData)
+    .select()
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+// ==================== STORAGE OPERATIONS ====================
+export const uploadFile = async (bucket, filePath, file) => {
+  const { data, error } = await supabase.storage
+    .from(bucket)
+    .upload(filePath, file, {
+      upsert: true
+    })
+
+  if (error) throw error
+  return data
+}
+
+export const getFileUrl = async (bucket, filePath) => {
+  const { data } = supabase.storage
+    .from(bucket)
+    .getPublicUrl(filePath)
+
+  return data.publicUrl
+}
+
+export const deleteFile = async (bucket, filePath) => {
+  const { error } = await supabase.storage
+    .from(bucket)
+    .remove([filePath])
+
+  if (error) throw error
+}
+
+// ==================== REALTIME SUBSCRIPTIONS ====================
+export const subscribeToMessages = (connectionId, callback) => {
+  return supabase
+    .channel(`messages:${connectionId}`)
+    .on('postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'messages',
+        filter: `connection_id=eq.${connectionId}`
+      },
+      callback
+    )
+    .subscribe()
+}
+
+export const subscribeToNotifications = (userId, callback) => {
+  return supabase
+    .channel(`notifications:${userId}`)
+    .on('postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'notifications',
+        filter: `user_id=eq.${userId}`
+      },
+      callback
+    )
+    .subscribe()
+}
+
+export const subscribeToJobApplications = (jobId, callback) => {
+  return supabase
+    .channel(`applications:${jobId}`)
+    .on('postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'job_applications',
+        filter: `job_id=eq.${jobId}`
+      },
+      callback
+    )
+    .subscribe()
+}

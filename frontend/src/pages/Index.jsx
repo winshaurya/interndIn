@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { GraduationCap, Users, Briefcase, TrendingUp, ArrowRight, CheckCircle } from "lucide-react";
 import { Link } from "react-router-dom";
+import Header from "@/components/Header";
 
 const Index = () => {
   const features = [
@@ -29,36 +30,23 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-gradient-subtle">
-      {/* Header */}
-      <header className="border-b bg-background/95 backdrop-blur">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-gradient-primary rounded-lg flex items-center justify-center">
-                <GraduationCap className="w-5 h-5 text-primary-foreground" />
-              </div>
-              <span className="text-xl font-bold">SGSITS Alumni Portal</span>
-            </div>
-            <div className="flex items-center gap-4">
-              <Button variant="ghost" asChild>
-                <Link to="/login">Sign In</Link>
-              </Button>
-              <Button variant="gradient" asChild>
-                <Link to="/signup">Get Started</Link>
-              </Button>
-            </div>
-          </div>
-        </div>
-      </header>
+      <Header />
 
       {/* Hero Section */}
       <section className="py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <div className="max-w-3xl mx-auto">
-            <h1 className="text-4xl md:text-6xl font-bold mb-6">
-              Bridge Your Career with 
-              <span className="bg-gradient-primary bg-clip-text text-transparent"> SGSITS Alumni</span>
-            </h1>
+            <div className="flex items-center justify-center gap-8 mb-6">
+              <div className="text-right text-4xl md:text-6xl font-bold font-heading">
+                <div>hire</div>
+                <div>the</div>
+              </div>
+              <div className="w-px bg-black h-20 md:h-24"></div>
+              <div className="text-left text-4xl md:text-6xl font-bold font-heading">
+                <div className="bg-gradient-primary bg-clip-text text-transparent">Next Gen</div>
+                <div>engineers</div>
+              </div>
+            </div>
             <p className="text-xl text-muted-foreground mb-8">
               Connect with alumni, discover exclusive job opportunities, and accelerate your career with the power of our network.
             </p>

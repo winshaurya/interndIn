@@ -26,6 +26,7 @@ import {
   Download
 } from "lucide-react";
 import { StatCard } from "@/components/admin/StatCard";
+import { useShellHeader } from "@/hooks/useShellHeader";
 
 const mockPostings = [
   {
@@ -115,6 +116,10 @@ const mockPostings = [
 ];
 
 export default function PostingsManagement() {
+  useShellHeader({
+    title: "Job Postings",
+    description: "Review moderation queue, export data, and feature standout roles.",
+  });
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
@@ -190,13 +195,12 @@ export default function PostingsManagement() {
   const totalApplications = postings.reduce((sum, p) => sum + p.applications, 0);
 
   return (
-    <div className="space-y-8 p-8">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">Job Postings Management</h1>
-          <p className="text-muted-foreground">Review and manage job postings with moderation controls</p>
-        </div>
+    <div className="space-y-8">
+      <div className="rounded-xl border bg-card p-4">
+        <p className="text-sm uppercase tracking-[0.2em] text-muted-foreground">Moderation tools</p>
+        <p className="text-sm text-muted-foreground">
+          Quickly triage pending submissions, keep an eye on flagged roles, and download clean reports.
+        </p>
       </div>
 
       {/* Stats Cards */}

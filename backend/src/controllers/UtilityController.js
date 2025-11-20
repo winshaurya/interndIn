@@ -1,45 +1,39 @@
 // controllers/UtilityController.js
 const db = require("../config/db");
 
+const safePage = (value, def = 1) => Math.max(Number(value) || def, 1);
+const safeLimit = (value, def = 20) => Math.min(Math.max(Number(value) || def, 1), 100);
+
 // GET /search/students?name=&branch=&year=&page=&limit=
 exports.searchStudents = async (req, res) => {
   try {
     const { name, branch, year, page = 1, limit = 20 } = req.query;
 
-    const q = db("student_profiles as sp")
-      .join("users as u", "sp.user_id", "u.id")
+    const pageNum = safePage(page);
+    const pageSize = safeLimit(limit);
+    const from = (pageNum - 1) * pageSize;
+    const to = from + pageSize - 1;
+
+    let query = db
+      .from("student_profiles")
       .select(
-        "sp.id",
-        "sp.name",
-        "u.email",
-        "sp.student_id",
-        "sp.branch",
-        "sp.grad_year",
-        "sp.skills",
-        "sp.resume_url",
-        "sp.created_at"
-      );
+        `id,name,student_id,branch,grad_year,skills,resume_url,created_at,users(email)`
+      , { count: "exact" })
+      .order("created_at", { ascending: false });
 
-    if (name) q.whereILike("sp.name", `%${name}%`);
-    if (branch) q.where("sp.branch", branch);
-    if (year) q.where("sp.grad_year", Number(year));
+    if (name) query = query.ilike("name", `%${name}%`);
+    if (branch) query = query.eq("branch", branch);
+    if (year) query = query.eq("grad_year", Number(year));
 
-    // pagination + sorting (newest first)
-    const pageNum = Math.max(Number(page) || 1, 1);
-    const pageSize = Math.min(Math.max(Number(limit) || 20, 1), 100);
-    const offset = (pageNum - 1) * pageSize;
-
-    const [data, [{ count }]] = await Promise.all([
-      q.clone().orderBy("sp.created_at", "desc").limit(pageSize).offset(offset),
-      q.clone().clearSelect().count({ count: "*" })
-    ]);
+    const { data, error, count } = await query.range(from, to);
+    if (error) throw error;
 
     res.json({
       success: true,
       page: pageNum,
       limit: pageSize,
-      total: Number(count),
-      data
+      total: count ?? 0,
+      data: data || [],
     });
   } catch (error) {
     console.error("Error searching students:", error);
@@ -52,40 +46,31 @@ exports.searchAlumni = async (req, res) => {
   try {
     const { name, company, year, page = 1, limit = 20 } = req.query;
 
-    const q = db("alumni_profiles as ap")
-      .join("users as u", "ap.user_id", "u.id")
-      .leftJoin("companies as c", "ap.id", "c.alumni_id")
+    const pageNum = safePage(page);
+    const pageSize = safeLimit(limit);
+    const from = (pageNum - 1) * pageSize;
+    const to = from + pageSize - 1;
+
+    let query = db
+      .from("alumni_profiles")
       .select(
-        "ap.id",
-        "ap.name",
-        "u.email",
-        "ap.grad_year",
-        "ap.current_title",
-        "ap.created_at",
-        db.raw("c.name as company"),
-        "c.industry",
-        "c.website"
-      );
+        `id,name,grad_year,current_title,created_at,users(email),companies!left(name,industry,website)`
+      , { count: "exact" })
+      .order("created_at", { ascending: false });
 
-    if (name) q.whereILike("ap.name", `%${name}%`);
-    if (company) q.whereILike("c.name", `%${company}%`);
-    if (year) q.where("ap.grad_year", Number(year));
+    if (name) query = query.ilike("name", `%${name}%`);
+    if (company) query = query.ilike("companies.name", `%${company}%`);
+    if (year) query = query.eq("grad_year", Number(year));
 
-    const pageNum = Math.max(Number(page) || 1, 1);
-    const pageSize = Math.min(Math.max(Number(limit) || 20, 1), 100);
-    const offset = (pageNum - 1) * pageSize;
-
-    const [data, [{ count }]] = await Promise.all([
-      q.clone().orderBy("ap.created_at", "desc").limit(pageSize).offset(offset),
-      q.clone().clearSelect().count({ count: "*" })
-    ]);
+    const { data, error, count } = await query.range(from, to);
+    if (error) throw error;
 
     res.json({
       success: true,
       page: pageNum,
       limit: pageSize,
-      total: Number(count),
-      data
+      total: count ?? 0,
+      data: data || [],
     });
   } catch (error) {
     console.error("Error searching alumni:", error);

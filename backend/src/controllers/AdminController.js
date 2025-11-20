@@ -1,6 +1,10 @@
 const db = require("../config/db");
 const { sendEmail } = require("../services/emailService");
 
+const getUserId = (req) => req.user?.userId ?? req.user?.id;
+const nowIso = () => new Date().toISOString();
+const thirtyDaysAgo = () => new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+
 // Helper to safely send HTML/text emails
 const notifyUser = async (email, subject, message) => {
   if (!email) return;
@@ -16,27 +20,32 @@ const notifyUser = async (email, subject, message) => {
   }
 };
 
+const fetchUser = async (id) => {
+  const { data, error } = await db.from("users").select("*").eq("id", id).maybeSingle();
+  if (error) throw error;
+  return data;
+};
+
+const updateUser = async (id, payload) => {
+  const { error } = await db.from("users").update(payload).eq("id", id);
+  if (error) throw error;
+};
+
 /* -------------------------------------------
    1️⃣ ALUMNI VERIFICATION
 -------------------------------------------- */
 exports.getPendingAlumni = async (req, res) => {
   try {
-    const rows = await db("users as u")
-      .leftJoin("alumni_profiles as ap", "ap.user_id", "u.id")
-      .select(
-        "u.id as user_id",
-        "u.email",
-        "u.status",
-        "u.is_verified",
-        "ap.id as alumni_profile_id",
-        "ap.name",
-        "ap.grad_year",
-        "ap.created_at"
-      )
-      .where({ "u.role": "alumni", "u.status": "pending" })
-      .orderBy("ap.created_at", "desc");
+    const { data, error } = await db
+      .from("users")
+      .select("id,email,status,is_verified,alumni_profiles(id,name,grad_year,created_at)")
+      .eq("role", "alumni")
+      .eq("status", "pending")
+      .order("created_at", { ascending: false, referencedTable: "alumni_profiles" });
 
-    res.json(rows);
+    if (error) throw error;
+
+    res.json(data || []);
   } catch (error) {
     console.error("getPendingAlumni error:", error);
     res.status(500).json({ error: "Internal server error" });
@@ -51,23 +60,24 @@ exports.verifyAlumni = async (req, res) => {
     return res.status(400).json({ error: "Invalid status" });
 
   try {
-    const user = await db("users").where({ id, role: "alumni" }).first();
-    if (!user) return res.status(404).json({ error: "Alumni not found" });
+    const user = await fetchUser(id);
+    if (!user || user.role !== "alumni") {
+      return res.status(404).json({ error: "Alumni not found" });
+    }
 
-    await db("users")
-      .where({ id })
-      .update({
-        status,
-        is_verified: status === "approved",
-      });
+    await updateUser(id, {
+      status,
+      is_verified: status === "approved",
+      updated_at: nowIso(),
+    });
 
     await notifyUser(
       user.email,
       "Alumni Registration Status",
-      " Your alumni registration has been ${status}."
+      `Your alumni registration has been ${status}.`
     );
 
-    res.json({ message: "Alumni ${status}" });
+    res.json({ message: `Alumni ${status}` });
   } catch (error) {
     console.error("verifyAlumni error:", error);
     res.status(500).json({ error: "Internal server error" });
@@ -81,23 +91,25 @@ exports.approveAlumni = async (req, res) => {
   try {
     const { companyId } = req.params;
 
-    const updated = await db("companies")
-      .where({ alumni_id: companyId })
-      .update({ status: "approved" });
+    const { error: companyError } = await db
+      .from("companies")
+      .update({ status: "approved", updated_at: nowIso() })
+      .eq("alumni_id", companyId);
 
-    if (!updated)
-      return res
-        .status(404)
-        .json({ error: "Company not found for this alumni" });
+    if (companyError) throw companyError;
 
-    const alumni = await db("alumni_profiles").where({ id: companyId }).first();
+    const { data: alumni, error: alumniError } = await db
+      .from("alumni_profiles")
+      .select("id,user_id")
+      .eq("id", companyId)
+      .maybeSingle();
+
+    if (alumniError) throw alumniError;
     if (!alumni) return res.status(404).json({ error: "Alumni not found" });
 
-    await db("users")
-      .where({ id: alumni.user_id })
-      .update({ status: "approved", is_verified: true });
+    await updateUser(alumni.user_id, { status: "approved", is_verified: true, updated_at: nowIso() });
 
-    const user = await db("users").where({ id: alumni.user_id }).first();
+    const user = await fetchUser(alumni.user_id);
     await notifyUser(
       user?.email,
       "Company Approved",
@@ -115,21 +127,23 @@ exports.rejectAlumni = async (req, res) => {
   try {
     const { companyId } = req.params;
 
-    const updated = await db("companies")
-      .where({ alumni_id: companyId })
-      .update({ status: "rejected" });
+    const { error: companyError } = await db
+      .from("companies")
+      .update({ status: "rejected", updated_at: nowIso() })
+      .eq("alumni_id", companyId);
 
-    if (!updated)
-      return res
-        .status(404)
-        .json({ error: "Company not found for this alumni" });
+    if (companyError) throw companyError;
 
-    const alumni = await db("alumni_profiles").where({ id: companyId }).first();
+    const { data: alumni, error: alumniError } = await db
+      .from("alumni_profiles")
+      .select("id,user_id")
+      .eq("id", companyId)
+      .maybeSingle();
+
+    if (alumniError) throw alumniError;
     if (!alumni) return res.status(404).json({ error: "Alumni not found" });
 
-    await db("users")
-      .where({ id: alumni.user_id })
-      .update({ status: "rejected" });
+    await updateUser(alumni.user_id, { status: "rejected", updated_at: nowIso() });
 
     res.json({ message: "Alumni & company rejected successfully" });
   } catch (error) {
@@ -143,23 +157,16 @@ exports.rejectAlumni = async (req, res) => {
 -------------------------------------------- */
 exports.getAllJobsAdmin = async (req, res) => {
   try {
-    const rows = await db("jobs as j")
-      .leftJoin("companies as c", "c.alumni_id", "j.company_id")
-      .leftJoin("alumni_profiles as ap", "ap.id", "j.posted_by_alumni_id")
-      .leftJoin("users as u", "u.id", "ap.user_id")
+    const { data, error } = await db
+      .from("jobs")
       .select(
-        "j.id as job_id",
-        "j.job_title",
-        "j.job_description",
-        "j.created_at as job_created_at",
-        "c.name as company_name",
-        "c.website",
-        "ap.name as alumni_name",
-        "u.email as alumni_email"
+        `id,job_title,job_description,created_at,companies(name,website),alumni_profiles(name,users(email))`
       )
-      .orderBy("j.created_at", "desc");
+      .order("created_at", { ascending: false });
 
-    res.json(rows);
+    if (error) throw error;
+
+    res.json(data || []);
   } catch (error) {
     console.error("getAllJobsAdmin error:", error);
     res.status(500).json({ error: "Internal server error" });
@@ -169,10 +176,18 @@ exports.getAllJobsAdmin = async (req, res) => {
 exports.deleteJobAdmin = async (req, res) => {
   const { id } = req.params;
   try {
-    const exists = await db("jobs").where({ id }).first();
+    const { data: exists, error: fetchError } = await db
+      .from("jobs")
+      .select("id")
+      .eq("id", id)
+      .maybeSingle();
+
+    if (fetchError) throw fetchError;
     if (!exists) return res.status(404).json({ error: "Job not found" });
 
-    await db("jobs").where({ id }).del();
+    const { error } = await db.from("jobs").delete().eq("id", id);
+    if (error) throw error;
+
     res.json({ message: "Job deleted successfully" });
   } catch (error) {
     console.error("deleteJobAdmin error:", error);
@@ -185,35 +200,23 @@ exports.deleteJobAdmin = async (req, res) => {
 -------------------------------------------- */
 exports.getAllUsers = async (req, res) => {
   try {
-    const students = await db("student_profiles as sp")
-      .leftJoin("users as u", "u.id", "sp.user_id")
-      .select(
-        "u.id as user_id",
-        "u.email",
-        "u.role",
-        "u.status",
-        "sp.name",
-        "sp.branch",
-        "sp.grad_year"
-      )
-      .orderBy("sp.created_at", "desc");
+    const [studentsRes, alumniRes] = await Promise.all([
+      db
+        .from("student_profiles")
+        .select("id,name,branch,grad_year,created_at,users(id,email,role,status)")
+        .order("created_at", { ascending: false }),
+      db
+        .from("alumni_profiles")
+        .select(
+          "id,name,grad_year,created_at,users(id,email,role,status),companies(name,status)"
+        )
+        .order("created_at", { ascending: false }),
+    ]);
 
-    const alumni = await db("alumni_profiles as ap")
-      .leftJoin("users as u", "u.id", "ap.user_id")
-      .leftJoin("companies as c", "c.alumni_id", "ap.id")
-      .select(
-        "u.id as user_id",
-        "u.email",
-        "u.role",
-        "u.status",
-        "ap.name",
-        "ap.grad_year",
-        "c.name as company_name",
-        "c.status as company_status"
-      )
-      .orderBy("ap.created_at", "desc");
+    if (studentsRes.error) throw studentsRes.error;
+    if (alumniRes.error) throw alumniRes.error;
 
-    res.json({ students, alumni });
+    res.json({ students: studentsRes.data || [], alumni: alumniRes.data || [] });
   } catch (error) {
     console.error("getAllUsers error:", error);
     res.status(500).json({ error: "Internal server error" });
@@ -223,10 +226,12 @@ exports.getAllUsers = async (req, res) => {
 exports.deleteUser = async (req, res) => {
   const { id } = req.params;
   try {
-    const exists = await db("users").where({ id }).first();
-    if (!exists) return res.status(404).json({ error: "User not found" });
+    const user = await fetchUser(id);
+    if (!user) return res.status(404).json({ error: "User not found" });
 
-    await db("users").where({ id }).del();
+    const { error } = await db.from("users").delete().eq("id", id);
+    if (error) throw error;
+
     res.json({ message: "User deleted successfully" });
   } catch (error) {
     console.error("deleteUser error:", error);
@@ -246,16 +251,19 @@ exports.sendNotification = async (req, res) => {
       .json({ error: "message and targetRole ('student'|'alumni') required" });
 
   try {
-    const recipients = await db("users")
-      .where({ role: targetRole })
-      .select("email");
+    const { data: recipients, error } = await db
+      .from("users")
+      .select("email")
+      .eq("role", targetRole);
 
-    for (const r of recipients) {
+    if (error) throw error;
+
+    for (const r of recipients || []) {
       await notifyUser(r.email, "Notification from Admin", message);
     }
 
     res.json({
-      message: `Notifications sent to ${recipients.length} ${targetRole}(s)`,
+      message: `Notifications sent to ${recipients?.length || 0} ${targetRole}(s)`,
     });
   } catch (error) {
     console.error("sendNotification error:", error);
@@ -265,37 +273,51 @@ exports.sendNotification = async (req, res) => {
 
 exports.getDashboardStats = async (req, res) => {
   try {
-    // New users (last 30 days)
-    const newUsers = await db("users")
-      .where("created_at", ">", db.raw("NOW() - INTERVAL '30 days'"))
-      .count('id as count')
-      .first();
-
-    // Active companies
-    const activeCompanies = await db("companies")
-      .where({ status: "active" })
-      .count('id as count')
-      .first();
-
-    // Live postings
-    const livePostings = await db("jobs")
-      .count('id as count')
-      .first();
-
-    // Applications today
-    const applicationsToday = await db("job_applications")
-      .where("applied_at", ">", db.raw("CURRENT_DATE"))
-      .count('id as count')
-      .first();
+    const [{ count: newUsers }, { count: activeCompanies }, { count: livePostings }, { count: applicationsToday }] =
+      await Promise.all([
+        db.from("users").select("id", { count: "exact", head: true }).gt("created_at", thirtyDaysAgo()),
+        db.from("companies").select("id", { count: "exact", head: true }).eq("status", "active"),
+        db.from("jobs").select("id", { count: "exact", head: true }),
+        db.from("job_applications").select("id", { count: "exact", head: true }).gt("applied_at", new Date().toISOString().slice(0, 10)),
+      ]);
 
     res.json({
-      newUsers: parseInt(newUsers.count),
-      activeCompanies: parseInt(activeCompanies.count),
-      livePostings: parseInt(livePostings.count),
-      applicationsToday: parseInt(applicationsToday.count),
+      newUsers: newUsers ?? 0,
+      activeCompanies: activeCompanies ?? 0,
+      livePostings: livePostings ?? 0,
+      applicationsToday: applicationsToday ?? 0,
     });
   } catch (error) {
     console.error("getDashboardStats error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+/**
+ * PUT /admin/users/:id/status
+ * Admin updates a user status (approved|rejected|pending|inactive)
+ * Mirrors frontend updateUserStatus(userId, status)
+ */
+exports.updateUserStatus = async (req, res) => {
+  const { id } = req.params;
+  const { status } = req.body;
+  const allowed = ["approved", "rejected", "pending", "inactive"];
+  if (!allowed.includes(status)) {
+    return res.status(400).json({ error: "Invalid status value" });
+  }
+  try {
+    const user = await fetchUser(id);
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    await updateUser(id, {
+      status,
+      is_verified: status === "approved",
+      updated_at: nowIso(),
+    });
+
+    res.json({ message: "User status updated", status });
+  } catch (err) {
+    console.error("updateUserStatus error:", err);
     res.status(500).json({ error: "Internal server error" });
   }
 };

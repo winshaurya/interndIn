@@ -16,11 +16,12 @@ const transporter = nodemailer.createTransport({
   auth,
 });
 
-// Optional: verify transporter once at startup (logs but does not crash the app)
-transporter.verify().then(
-  () => console.log("Email transporter is ready"),
-  (err) => console.warn("Email transporter verify failed:", err && err.message)
-);
+// Optional: verify transporter once at startup (DISABLED)
+// transporter.verify().then(
+//   () => console.log("Email transporter is ready"),
+//   (err) => console.warn("Email transporter verify failed:", err && err.message)
+// );
+console.log("📧 Email service disabled for development");
 
 /**
  * sendEmail supports:

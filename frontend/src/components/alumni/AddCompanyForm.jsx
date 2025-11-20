@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { ArrowLeft, Building2, Info } from "lucide-react";
+import { Building2, Info, LayoutGrid, Sparkles } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 const companySchema = z.object({
@@ -41,6 +41,12 @@ const companySizes = [
   "1000+ employees"
 ];
 
+const fastFacts = [
+  { label: "Time to complete", value: "3 mins", icon: Sparkles },
+  { label: "Fields required", value: "4", icon: LayoutGrid },
+  { label: "Reusable profile", value: "Company hub", icon: Building2 },
+];
+
 export function AddCompanyForm() {
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -71,24 +77,36 @@ export function AddCompanyForm() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="flex items-center space-x-4">
-        <Button 
-          variant="ghost" 
-          size="sm" 
-          onClick={() => navigate("/alumni")}
-          className="p-2"
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
+    <div className="max-w-4xl space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card p-4">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Add New Company</h1>
-          <p className="text-muted-foreground">Create a basic company profile quickly</p>
+          <p className="text-sm text-muted-foreground">Launch a new employer profile with just the essential context.</p>
+          <p className="text-xs text-muted-foreground">The team can enrich logos, photos, and culture content later.</p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => navigate("/alumni/companies")}>Cancel</Button>
+          <Button size="sm" form="add-company-form" type="submit" disabled={isSubmitting}>
+            {isSubmitting ? "Publishing..." : "Publish"}
+          </Button>
         </div>
       </div>
 
-      {/* Quick Setup Info */}
+      <div className="grid gap-4 sm:grid-cols-3">
+        {fastFacts.map(({ label, value, icon: Icon }) => (
+          <Card key={label}>
+            <CardContent className="flex items-center gap-3 p-4">
+              <div className="rounded-full bg-muted p-2 text-muted-foreground">
+                <Icon className="h-4 w-4" />
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">{label}</p>
+                <p className="text-lg font-semibold">{value}</p>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
       <Card className="border-primary/20">
         <CardContent className="pt-6">
           <div className="flex items-start space-x-3">
@@ -103,8 +121,7 @@ export function AddCompanyForm() {
         </CardContent>
       </Card>
 
-      {/* Form */}
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+      <form id="add-company-form" onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">Basic Company Information</CardTitle>
@@ -208,18 +225,8 @@ export function AddCompanyForm() {
 
         {/* Form Actions */}
         <div className="flex justify-end space-x-3">
-          <Button 
-            type="button" 
-            variant="outline" 
-            onClick={() => navigate("/alumni")}
-          >
-            Cancel
-          </Button>
-          <Button 
-            type="submit" 
-            disabled={isSubmitting}
-            className="px-6"
-          >
+          <Button type="button" variant="outline" onClick={() => navigate("/alumni")}>Cancel</Button>
+          <Button type="submit" disabled={isSubmitting} className="px-6">
             {isSubmitting ? "Creating Company..." : "Create Company"}
           </Button>
         </div>

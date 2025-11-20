@@ -12,8 +12,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Search, Star, Flag, Merge, Edit, Building2, Users, Briefcase } from "lucide-react";
+import { Search, Star, Flag, Edit, Building2, Users, Briefcase } from "lucide-react";
 import { StatCard } from "@/components/admin/StatCard";
+import { useShellHeader } from "@/hooks/useShellHeader";
 
 const mockCompanies = [
   {
@@ -78,6 +79,10 @@ const mockCompanies = [
 ];
 
 export default function CompaniesManagement() {
+  useShellHeader({
+    title: "Company Directory",
+    description: "Approve partners, surface featured employers, and flag risky accounts.",
+  });
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [companies, setCompanies] = useState(mockCompanies);
@@ -127,13 +132,12 @@ export default function CompaniesManagement() {
   };
 
   return (
-    <div className="space-y-8 p-8">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">Companies Management</h1>
-          <p className="text-muted-foreground">Manage company registrations and partnerships</p>
-        </div>
+    <div className="space-y-8">
+      <div className="rounded-xl border bg-card p-4">
+        <p className="text-sm uppercase tracking-[0.2em] text-muted-foreground">Partner operations</p>
+        <p className="text-sm text-muted-foreground">
+          Search approvals, bump champions to featured, and resolve any flagged entities.
+        </p>
       </div>
 
       {/* Stats Cards */}

@@ -1,5 +1,5 @@
 // src/controllers/AuthUtilityController.js
-const knex = require("../config/db");
+const db = require("../config/db");
 const bcrypt = require("bcrypt");
 const {
   generateRandomToken,
@@ -16,7 +16,16 @@ const forgotPassword = async (req, res) => {
       .toLowerCase();
     if (!emailNorm) return res.status(400).json({ error: "Email required" });
 
-    const user = await knex("users").where({ email: emailNorm }).first();
+    const { data: user, error: userError } = await db
+      .from("users")
+      .select("id, email")
+      .eq("email", emailNorm)
+      .maybeSingle();
+
+    if (userError && userError.code !== "PGRST116") {
+      console.error("Failed to lookup user", userError);
+      return res.status(500).json({ error: "Unable to look up user" });
+    }
 
     // Always generic
     if (!user) {
@@ -26,9 +35,14 @@ const forgotPassword = async (req, res) => {
     }
 
     // (Optional) clear old unused tokens for this user
-    await knex("password_reset_tokens")
-      .where({ user_id: user.id, used: false })
-      .del();
+    const { error: cleanupError } = await db
+      .from("password_reset_tokens")
+      .delete()
+      .eq("user_id", user.id)
+      .eq("used", false);
+    if (cleanupError) {
+      console.warn("Failed to cleanup existing reset tokens", cleanupError);
+    }
 
     const plainToken = generateRandomToken(); // secure random
     const tokenHash = hashToken(plainToken); // store only hash
@@ -36,13 +50,19 @@ const forgotPassword = async (req, res) => {
       Date.now() + RESET_TOKEN_EXPIRY_MINUTES * 60 * 1000
     );
 
-    await knex("password_reset_tokens").insert({
-      user_id: user.id,
-      token_hash: tokenHash,
-      expires_at: expiresAt,
-      used: false,
-      created_at: new Date(),
-    });
+    const { error: insertError } = await db
+      .from("password_reset_tokens")
+      .insert({
+        user_id: user.id,
+        token_hash: tokenHash,
+        expires_at: expiresAt.toISOString(),
+        used: false,
+        created_at: new Date().toISOString(),
+      });
+    if (insertError) {
+      console.error("Failed to persist reset token", insertError);
+      return res.status(500).json({ error: "Unable to create reset token" });
+    }
 
     const base = process.env.FRONTEND_URL || "http://localhost:3000";
     const resetLink = `${base}/reset-password?token=${encodeURIComponent(
@@ -57,9 +77,10 @@ const forgotPassword = async (req, res) => {
       );
     } catch (emailErr) {
       console.error("Email send failed:", emailErr);
-      await knex("password_reset_tokens")
-        .where({ token_hash: tokenHash })
-        .del();
+      await db
+        .from("password_reset_tokens")
+        .delete()
+        .eq("token_hash", tokenHash);
     }
 
     return res.json({
@@ -138,10 +159,16 @@ const changePassword = async (req, res) => {
         .json({ error: "currentPassword and newPassword required" });
     }
 
-    const user = await knex("users")
-      .select("id", "password_hash") // <-- change to "password_hash" if that’s your schema
-      .where({ id: req.user.id })
-      .first();
+    const { data: user, error: userErr } = await db
+      .from("users")
+      .select("id, password_hash")
+      .eq("id", req.user.id)
+      .maybeSingle();
+
+    if (userErr) {
+      console.error("Failed to fetch user for password change", userErr);
+      return res.status(500).json({ error: "Unable to fetch user" });
+    }
 
     if (!user) return res.status(404).json({ error: "User not found" });
     if (!user.password_hash) {
@@ -157,9 +184,26 @@ const changePassword = async (req, res) => {
     if (!ok) return res.status(401).json({ error: "Invalid credentials" });
 
     const hashedPassword = await bcrypt.hash(String(newPassword), 10);
-    await knex("users")
-      .where({ id: req.user.id })
-      .update({ password_hash: hashedPassword });
+
+    const { error: authUpdateError } = await db.supabase.auth.admin.updateUserById(
+      req.user.id,
+      { password: String(newPassword) }
+    );
+
+    if (authUpdateError) {
+      console.error("Supabase password update failed", authUpdateError);
+      return res.status(500).json({ error: "Unable to update Supabase password" });
+    }
+
+    const { error: updateError } = await db
+      .from("users")
+      .update({ password_hash: hashedPassword, updated_at: new Date().toISOString() })
+      .eq("id", req.user.id);
+
+    if (updateError) {
+      console.error("Failed to update password", updateError);
+      return res.status(500).json({ error: "Unable to update password" });
+    }
 
     return res.json({ message: "Password changed successfully" });
   } catch (err) {

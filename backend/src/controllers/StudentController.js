@@ -60,7 +60,7 @@ const upsertProfile = async (req, res) => {
     const userId = getUserIdFromReq(req);
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
-    const { name, studentId, branch, gradYear, skills, resumeUrl } =
+    const { name, studentId, branch, gradYear, skills, resumeUrl, email, phone, dateOfBirth, currentYear, cgpa, achievements, experiences, desiredRoles, preferredLocations, workMode } =
       req.body || {};
 
     const { data: existing, error: existingError } = await db
@@ -82,6 +82,16 @@ const upsertProfile = async (req, res) => {
       ...(gradYear !== undefined && { grad_year: Number(gradYear) }),
       ...(skills !== undefined && { skills: normalizeSkills(skills) }),
       ...(resumeUrl !== undefined && { resume_url: resumeUrl }),
+      ...(email !== undefined && { email }),
+      ...(phone !== undefined && { phone }),
+      ...(dateOfBirth !== undefined && { date_of_birth: dateOfBirth }),
+      ...(currentYear !== undefined && { current_year: Number(currentYear) }),
+      ...(cgpa !== undefined && { cgpa: parseFloat(cgpa) }),
+      ...(achievements !== undefined && { achievements }),
+      ...(experiences !== undefined && { experiences }),
+      ...(desiredRoles !== undefined && { desired_roles: desiredRoles }),
+      ...(preferredLocations !== undefined && { preferred_locations: preferredLocations }),
+      ...(workMode !== undefined && { work_mode: workMode }),
     };
 
     if (existing) {
@@ -144,6 +154,16 @@ const upsertProfile = async (req, res) => {
       grad_year: Number(gradYear),
       skills: normalizeSkills(skills) || null,
       resume_url: resumeUrl || null,
+      email: email || null,
+      phone: phone || null,
+      date_of_birth: dateOfBirth || null,
+      current_year: currentYear ? Number(currentYear) : null,
+      cgpa: cgpa ? parseFloat(cgpa) : null,
+      achievements: achievements || null,
+      experiences: experiences || null,
+      desired_roles: desiredRoles || null,
+      preferred_locations: preferredLocations || null,
+      work_mode: workMode || null,
     };
 
     const { error: insertError } = await db

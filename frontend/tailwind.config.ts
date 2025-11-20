@@ -1,6 +1,5 @@
 import type { Config } from "tailwindcss";
 export default {
-  darkMode: ["class"],
   content: [
     "./pages/**/*.{js,jsx,ts,tsx}",
     "./components/**/*.{js,jsx,ts,tsx}",
@@ -17,6 +16,11 @@ export default {
       },
     },
     extend: {
+      fontFamily: {
+        sans: ['"Redaction"', 'sans-serif'],
+        heading: ['"The Neue Black"', 'sans-serif'],
+        mono: ['Courier New', 'monospace'],
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",

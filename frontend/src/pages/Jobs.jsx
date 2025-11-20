@@ -10,6 +10,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import JobCard from "@/components/JobCard";
 import JobFilters from "@/components/JobFilters";
+import Header from "@/components/Header";
 import { apiClient } from "@/lib/api";
 
 export default function Jobs() {
@@ -39,6 +40,8 @@ export default function Jobs() {
 
   return (
     <div className="min-h-screen bg-background">
+      <Header />
+
       {/* Header Section */}
       <div className="bg-primary text-primary-foreground py-8">
         <div className="max-w-7xl mx-auto px-6">

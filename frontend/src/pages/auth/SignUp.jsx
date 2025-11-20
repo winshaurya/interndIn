@@ -3,10 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { Eye, EyeOff, GraduationCap, Building } from "lucide-react";
+import { Eye, EyeOff } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { apiClient } from "@/lib/api";
 
@@ -19,16 +17,9 @@ const SignUp = () => {
   const navigate = useNavigate();
 
   const [formData, setFormData] = useState({
-    name: "",
     email: "",
     password: "",
     confirmPassword: "",
-    phone: "",
-    studentId: "",
-    branch: "",
-    gradYear: "",
-    currentTitle: "",
-    acceptTerms: false,
   });
 
   const handleSubmit = async (e) => {
@@ -56,73 +47,25 @@ const SignUp = () => {
       return;
     }
 
-    if (userType === "student" && !formData.branch) {
-      toast({
-        title: "Branch required",
-        description: "Please select your branch.",
-        variant: "destructive",
-      });
-      setIsLoading(false);
-      return;
-    }
-
-    if (userType === "alumni" && !formData.currentTitle) {
-      toast({
-        title: "Job title required",
-        description: "Please enter your current job title.",
-        variant: "destructive",
-      });
-      setIsLoading(false);
-      return;
-    }
-
-    if (!formData.acceptTerms) {
-      toast({
-        title: "Terms not accepted",
-        description: "Please accept the terms and conditions to continue.",
-        variant: "destructive",
-      });
-      setIsLoading(false);
-      return;
-    }
-
     try {
-      let response;
-      if (userType === "student") {
-        response = await apiClient.request('/auth/register/student', {
-          method: 'POST',
-          body: JSON.stringify({
-            name: formData.name,
-            role: 'student',
-            email: formData.email,
-            password_hash: formData.password,
-            branch: formData.branch,
-            gradYear: formData.gradYear,
-            student_id: formData.studentId,
-          }),
-        });
-      } else {
-        response = await apiClient.request('/auth/register/alumni', {
-          method: 'POST',
-          body: JSON.stringify({
-            name: formData.name,
-            role: 'alumni',
-            email: formData.email,
-            password_hash: formData.password,
-            current_title: formData.currentTitle,
-            grad_year: formData.gradYear,
-          }),
-        });
-      }
+      console.log('Form data:', formData);
+      const response = await apiClient.request('/auth/register', {
+        method: 'POST',
+        body: JSON.stringify({
+          email: formData.email,
+          password: formData.password,
+          role: userType,
+        }),
+      });
 
       toast({
         title: "Account created successfully!",
-        description: "Please login to continue.",
+        description: "Please complete your profile.",
         variant: "default",
       });
 
-      // Redirect to login after registration
-      navigate("/login");
+      // Redirect to profile setup after registration
+      navigate("/profile-setup");
     } catch (error) {
       toast({
         title: "Registration failed",
@@ -174,19 +117,6 @@ const SignUp = () => {
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Name */}
-              <div className="space-y-2">
-                <Label htmlFor="name">Full Name</Label>
-                <Input
-                  id="name"
-                  type="text"
-                  placeholder="Enter your full name"
-                  value={formData.name}
-                  onChange={(e) => handleInputChange("name", e.target.value)}
-                  required
-                />
-              </div>
-
               {/* Email */}
               <div className="space-y-2">
                 <Label htmlFor="email">
@@ -205,93 +135,6 @@ const SignUp = () => {
                     Use your official SGSITS email address
                   </p>
                 )}
-              </div>
-
-              {/* Student ID (for students only) */}
-              {userType === "student" && (
-                <div className="space-y-2">
-                  <Label htmlFor="studentId">Student ID</Label>
-                  <Input
-                    id="studentId"
-                    type="text"
-                    placeholder="Enter your student ID"
-                    value={formData.studentId}
-                    onChange={(e) => handleInputChange("studentId", e.target.value)}
-                    required
-                  />
-                </div>
-              )}
-
-              {/* Branch (for students only) */}
-              {userType === "student" && (
-                <div className="space-y-2">
-                  <Label htmlFor="branch">Branch</Label>
-                  <Select onValueChange={(value) => handleInputChange("branch", value)}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select your branch" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="CSE">Computer Science & Engineering</SelectItem>
-                      <SelectItem value="IT">Information Technology</SelectItem>
-                      <SelectItem value="ECE">Electronics & Communication Engineering</SelectItem>
-                      <SelectItem value="EE">Electrical Engineering</SelectItem>
-                      <SelectItem value="ME">Mechanical Engineering</SelectItem>
-                      <SelectItem value="CE">Civil Engineering</SelectItem>
-                      <SelectItem value="CHE">Chemical Engineering</SelectItem>
-                      <SelectItem value="MCA">Master of Computer Applications</SelectItem>
-                      <SelectItem value="MBA">Master of Business Administration</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-
-              {/* Graduation Year (for alumni) */}
-              {userType === "alumni" && (
-                <div className="space-y-2">
-                  <Label htmlFor="gradYear">Graduation Year</Label>
-                  <Select onValueChange={(value) => handleInputChange("gradYear", value)}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select graduation year" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Array.from({ length: 30 }, (_, i) => {
-                        const year = new Date().getFullYear() - i;
-                        return (
-                          <SelectItem key={year} value={year.toString()}>
-                            {year}
-                          </SelectItem>
-                        );
-                      })}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-
-              {/* Current Title (for alumni) */}
-              {userType === "alumni" && (
-                <div className="space-y-2">
-                  <Label htmlFor="currentTitle">Current Job Title</Label>
-                  <Input
-                    id="currentTitle"
-                    type="text"
-                    placeholder="e.g. Software Engineer"
-                    value={formData.currentTitle}
-                    onChange={(e) => handleInputChange("currentTitle", e.target.value)}
-                    required
-                  />
-                </div>
-              )}
-
-              {/* Phone */}
-              <div className="space-y-2">
-                <Label htmlFor="phone">Phone Number (Optional)</Label>
-                <Input
-                  id="phone"
-                  type="tel"
-                  placeholder="+91 9876543210"
-                  value={formData.phone}
-                  onChange={(e) => handleInputChange("phone", e.target.value)}
-                />
               </div>
 
               {/* Password */}
@@ -343,25 +186,6 @@ const SignUp = () => {
                     {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </Button>
                 </div>
-              </div>
-
-              {/* Terms Checkbox */}
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="acceptTerms"
-                  checked={formData.acceptTerms}
-                  onCheckedChange={(checked) => handleInputChange("acceptTerms", checked)}
-                />
-                <Label htmlFor="acceptTerms" className="text-sm font-normal">
-                  I agree to the{" "}
-                  <Link to="/terms" className="text-primary hover:underline">
-                    Terms of Service
-                  </Link>{" "}
-                  and{" "}
-                  <Link to="/privacy" className="text-primary hover:underline">
-                    Privacy Policy
-                  </Link>
-                </Label>
               </div>
 
               {/* Submit Button */}

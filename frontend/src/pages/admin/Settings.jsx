@@ -20,8 +20,13 @@ import {
   Save
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useShellHeader } from "@/hooks/useShellHeader";
 
 export default function Settings() {
+  useShellHeader({
+    title: "System Settings",
+    description: "Configure messaging, security, content, and notification policies in one place.",
+  });
   const { toast } = useToast();
   const [settings, setSettings] = useState({
     // General Settings
@@ -68,14 +73,12 @@ export default function Settings() {
   };
 
   return (
-    <div className="p-8 space-y-6">
-      <div className="flex items-center gap-3">
+    <div className="space-y-6">
+      <div className="flex items-center gap-3 rounded-xl border bg-card p-4">
         <SettingsIcon className="h-8 w-8 text-primary" />
         <div>
-          <h1 className="text-3xl font-bold text-foreground">System Settings</h1>
-          <p className="text-muted-foreground">
-            Configure platform settings and preferences
-          </p>
+          <p className="text-sm uppercase tracking-[0.2em] text-muted-foreground">Configuration</p>
+          <p className="text-sm text-muted-foreground">Tabs mirror the sections surfaced in your new AppShell.</p>
         </div>
       </div>
 

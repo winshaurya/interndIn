@@ -1,25 +1,69 @@
 const db = require("../config/db.js");
 const bcrypt = require("bcrypt");
-const jwt = require("jsonwebtoken");
 const nodemailer = require("nodemailer");
-const crypto = require("crypto");
+const {
+  ensureAppUserRecord,
+  fetchAppUserProfile,
+  buildUserResponse,
+  updateLastLogin,
+} = require("../services/userService");
 
-const SECRET_KEY = process.env.JWT_SECRET || "your_jwt_secret";
+const PUBLIC_CLIENT_ERROR =
+  "Supabase anon client is not configured. Set SUPABASE_ANON_KEY to enable password and OAuth flows.";
+
+const normalizeEmail = (email) => String(email || "").trim().toLowerCase();
+
+const requirePublicClient = () => {
+  const client = db.getPublicClient?.();
+  if (!client) {
+    throw new Error(PUBLIC_CLIENT_ERROR);
+  }
+  return client;
+};
+
+const deleteSupabaseUser = async (userId) => {
+  try {
+    await db.supabase.auth.admin.deleteUser(userId);
+  } catch (cleanupError) {
+    console.warn("Failed to delete Supabase user during rollback", cleanupError);
+  }
+};
+
+const getOrCreateAppUser = async (supabaseUser, options = {}) => {
+  let appUser = await fetchAppUserProfile(supabaseUser.id);
+  if (appUser) {
+    return appUser;
+  }
+
+  await ensureAppUserRecord(supabaseUser, options);
+  return fetchAppUserProfile(supabaseUser.id);
+};
+
+const buildSessionPayload = (session, supabaseUser, appUser) => ({
+  token: session.access_token,
+  accessToken: session.access_token,
+  refreshToken: session.refresh_token,
+  expiresAt: session.expires_at,
+  provider:
+    supabaseUser?.app_metadata?.provider || session?.user?.app_metadata?.provider || "email",
+  user: buildUserResponse(supabaseUser, appUser),
+});
 
 // ==================== REGISTER STUDENT ====================
 const registerStudent = async (req, res) => {
   try {
-    const { name, role, email, password_hash, branch, gradYear, student_id } =
-      req.body;
+    console.log("Register student request body:", req.body);
+    const {
+      name,
+      email,
+      password_hash: password,
+      branch,
+      gradYear,
+      student_id,
+    } = req.body;
+    const roleToSave = "student";
 
-    if (
-      !name ||
-      !email ||
-      !password_hash ||
-      !branch ||
-      !gradYear ||
-      !student_id
-    ) {
+    if (!name || !email || !password || !branch || !gradYear || !student_id) {
       return res.status(400).json({ error: "All fields are required" });
     }
 
@@ -36,64 +80,86 @@ const registerStudent = async (req, res) => {
       "mechanical",
       "civil",
       "industrial production",
+      "cse",
+      "it",
+      "ece",
+      "ee",
+      "me",
+      "ce",
+      "che",
+      "mca",
+      "mba",
     ];
 
-    function isValidBranch(branch) {
-      return validBranches.includes(branch.toLowerCase().trim());
-    }
-
-    if (!isValidBranch(branch)) {
+    if (!validBranches.includes(branch.toLowerCase().trim())) {
       return res.status(400).json({ error: "Branch is incorrect" });
     }
 
-    const { data: existingUser, error: existingError } = await db
-      .from('users')
-      .select('*')
-      .eq('email', email)
-      .single();
+    const normalizedEmail = normalizeEmail(email);
 
-    if (existingUser && !existingError) {
+    const { data: existingUser } = await db
+      .from("users")
+      .select("id")
+      .eq("email", normalizedEmail)
+      .maybeSingle();
+
+    if (existingUser) {
       return res
         .status(409)
         .json({ error: "User with this email already exists" });
     }
 
-    const hashedPassword = await bcrypt.hash(password_hash, 10);
+    const { data: authResult, error: authError } = await db.supabase.auth.admin.createUser({
+      email: normalizedEmail,
+      password,
+      email_confirm: false,
+      user_metadata: { role: roleToSave, name },
+    });
 
-    // Insert user
-    const { data: newUser, error: userError } = await db
-      .from('users')
-      .insert({
-        email,
-        password_hash: hashedPassword,
-        role,
-      })
-      .select('id')
-      .single();
-
-    if (userError) {
-      console.error('User insert error:', userError);
-      return res.status(500).json({ error: 'Failed to create user' });
+    if (authError) {
+      console.error("Supabase signup error:", authError);
+      return res.status(400).json({ error: authError.message || "Unable to create Supabase user" });
     }
 
-    // Insert into student_profiles
-    const { error: profileError } = await db
-      .from('student_profiles')
-      .insert({
-        name,
-        user_id: newUser.id,
-        student_id,
-        branch,
-        grad_year: gradYear,
+    const supabaseUser = authResult?.user;
+    if (!supabaseUser) {
+      return res.status(500).json({ error: "Supabase user creation returned no user" });
+    }
+
+    let appUserRow;
+    try {
+      appUserRow = await ensureAppUserRecord(supabaseUser, {
+        password,
+        roleHint: roleToSave,
+        status: "pending",
       });
+    } catch (insertError) {
+      console.error("Failed to persist user row:", insertError);
+      await deleteSupabaseUser(supabaseUser.id);
+      await db.from("users").delete().eq("id", supabaseUser.id);
+      return res.status(500).json({ error: "Failed to persist user profile" });
+    }
+
+    const { error: profileError } = await db.from("student_profiles").insert({
+      user_id: supabaseUser.id,
+      name,
+      student_id,
+      branch,
+      grad_year: gradYear,
+    });
 
     if (profileError) {
-      console.error('Profile insert error:', profileError);
-      // Optionally, delete the user if profile fails, but for simplicity, leave it
-      return res.status(500).json({ error: 'Failed to create profile' });
+      console.error("Profile insert error:", profileError);
+      await deleteSupabaseUser(supabaseUser.id);
+      await db.from("users").delete().eq("id", supabaseUser.id);
+      return res.status(500).json({ error: "Failed to create profile" });
     }
 
-    res.status(201).json({ message: "User registered successfully" });
+    res.status(201).json({
+      message:
+        "Registration submitted successfully. Please verify your email to activate your account.",
+      userId: supabaseUser.id,
+    });
   } catch (error) {
     console.error("Student Registration Error:", error);
     res.status(500).json({ error: "An error occurred during registration." });
@@ -102,60 +168,103 @@ const registerStudent = async (req, res) => {
 
 // // ==================== LOGIN ====================
 const login = async (req, res) => {
-  const { email, password } = req.body;
+  try {
+    console.log("Login request received:", req.body);
+    const { email, password } = req.body;
+    const normalizedEmail = normalizeEmail(email);
+    const publicClient = requirePublicClient();
 
-  const { data: user, error } = await db
-    .from('users')
-    .select('*')
-    .eq('email', email)
-    .single();
+    const { data, error } = await publicClient.auth.signInWithPassword({
+      email: normalizedEmail,
+      password,
+    });
 
-  if (error || !user) return res.status(400).json({ message: "User not found" });
-
-  const valid = await bcrypt.compare(password, user.password_hash);
-  if (!valid) return res.status(401).json({ message: "Invalid password" });
-
-  const roleToAssign = user.role.toLowerCase();
-
-  const token = jwt.sign(
-    { id: user.id, email: user.email, role: roleToAssign },
-    SECRET_KEY,
-    {
-      expiresIn: "1h",
+    if (error || !data?.session) {
+      console.warn("Supabase login failed", error);
+      return res.status(401).json({ message: "Invalid email or password" });
     }
-  );
 
-  // Remove password from user object
-  const { password_hash, ...userWithoutPassword } = user;
-
-  res.json({
-    token,
-    user: {
-      ...userWithoutPassword,
-      role: roleToAssign
+    const session = data.session;
+    const supabaseUser = session.user;
+    let appUser = await fetchAppUserProfile(supabaseUser.id);
+    if (!appUser) {
+      await ensureAppUserRecord(supabaseUser, {
+        password,
+        roleHint: supabaseUser.user_metadata?.role || "student",
+      });
+      appUser = await fetchAppUserProfile(supabaseUser.id);
     }
-  });
+
+    if (!appUser) {
+      console.error("Unable to hydrate app user after Supabase login", {
+        supabaseId: supabaseUser.id,
+      });
+      return res.status(500).json({ error: "Unable to sync user profile" });
+    }
+
+    await updateLastLogin(supabaseUser.id);
+
+    res.json(buildSessionPayload(session, supabaseUser, appUser));
+  } catch (error) {
+    console.error("Login error:", error);
+    res.status(500).json({ error: "Failed to login" });
+  }
+};
+
+const refreshSession = async (req, res) => {
+  const { refreshToken } = req.body || {};
+  if (!refreshToken) {
+    return res.status(400).json({ error: "refreshToken is required" });
+  }
+
+  try {
+    const publicClient = requirePublicClient();
+    const { data, error } = await publicClient.auth.refreshSession({
+      refresh_token: refreshToken,
+    });
+
+    if (error || !data?.session?.user) {
+      console.warn("Supabase refresh failed", error);
+      return res.status(401).json({ error: "Invalid refresh token" });
+    }
+
+    const session = data.session;
+    const supabaseUser = session.user;
+
+    let appUser = await fetchAppUserProfile(supabaseUser.id);
+    if (!appUser) {
+      await ensureAppUserRecord(supabaseUser, {
+        roleHint: supabaseUser.user_metadata?.role || "student",
+      });
+      appUser = await fetchAppUserProfile(supabaseUser.id);
+    }
+
+    if (!appUser) {
+      console.error("Unable to hydrate user during refresh", {
+        supabaseId: supabaseUser.id,
+      });
+      return res.status(500).json({ error: "Unable to sync user profile" });
+    }
+
+    await updateLastLogin(supabaseUser.id);
+
+    res.json(buildSessionPayload(session, supabaseUser, appUser));
+  } catch (error) {
+    console.error("Refresh session error:", error);
+    res.status(500).json({ error: "Unable to refresh session" });
+  }
 };
 
 // ==================== REGISTER ALUMNI ====================
 const registerAlumni = async (req, res) => {
-  const { name, role, grad_year, email, password_hash, current_title } =
-    req.body;
+  const { name, grad_year, email, password_hash: password, current_title } = req.body;
+  const roleToSave = "alumni";
 
-  if (
-    !name ||
-    !role ||
-    !email ||
-    !password_hash ||
-    !current_title ||
-    !grad_year
-  ) {
+  if (!name || !email || !password || !current_title || !grad_year) {
     return res.status(400).json({ error: "All fields are required" });
   }
 
-  // ✅ Enforce business/company email
-  const corporateDomains = [
-    // "gmail.com",
+  const blockedDomains = [
     "yahoo.com",
     "outlook.com",
     "hotmail.com",
@@ -165,81 +274,77 @@ const registerAlumni = async (req, res) => {
     "10minutemail.com",
   ];
 
-  function isBusinessEmail(email) {
-    const domain = email.split("@")[1].toLowerCase();
-    return !corporateDomains.includes(domain);
-  }
-
-  if (!isBusinessEmail(email)) {
+  const domain = email.split("@")[1]?.toLowerCase();
+  if (!domain || blockedDomains.includes(domain)) {
     return res
       .status(400)
       .json({ error: "Please use a valid business/company email ID" });
   }
 
   try {
-    const { data: existingAlumni, error: existingError } = await db
-      .from('users')
-      .select('*')
-      .eq('email', email)
-      .single();
+    const normalizedEmail = normalizeEmail(email);
+    const { data: existingAlumni } = await db
+      .from("users")
+      .select("id")
+      .eq("email", normalizedEmail)
+      .maybeSingle();
 
-    if (existingAlumni && !existingError) {
+    if (existingAlumni) {
       return res.status(409).json({
         error:
           "An account with this email already exists or is pending verification.",
       });
     }
 
-    const hashedPassword = await bcrypt.hash(password_hash, 10);
+    const { data: authResult, error: authError } = await db.supabase.auth.admin.createUser({
+      email: normalizedEmail,
+      password,
+      email_confirm: false,
+      user_metadata: { role: roleToSave, name },
+    });
 
-    // Insert user
-    const { data: newUser, error: userError } = await db
-      .from('users')
-      .insert({
-        email,
-        password_hash: hashedPassword,
-        role,
-      })
-      .select('id')
-      .single();
-
-    if (userError) {
-      console.error('User insert error:', userError);
-      return res.status(500).json({ error: 'Failed to create user' });
+    if (authError) {
+      console.error("Supabase signup error:", authError);
+      return res.status(400).json({ error: authError.message || "Unable to create Supabase user" });
     }
 
-    // Insert alumni profile
-    const { data: newAlumni, error: alumniError } = await db
-      .from('alumni_profiles')
-      .insert({
-        name,
-        user_id: newUser.id,
-        grad_year: gradYear,
-        current_title,
-      })
-      .select('id')
-      .single();
+    const supabaseUser = authResult?.user;
+    if (!supabaseUser) {
+      return res.status(500).json({ error: "Supabase user creation returned no user" });
+    }
+
+    let appUserRow;
+    try {
+      appUserRow = await ensureAppUserRecord(supabaseUser, {
+        password,
+        roleHint: roleToSave,
+        status: "pending",
+      });
+    } catch (insertError) {
+      console.error("Failed to persist user row:", insertError);
+      await deleteSupabaseUser(supabaseUser.id);
+      await db.from("users").delete().eq("id", supabaseUser.id);
+      return res.status(500).json({ error: "Failed to persist user profile" });
+    }
+
+    const { error: alumniError } = await db.from("alumni_profiles").insert({
+      user_id: supabaseUser.id,
+      name,
+      grad_year,
+      current_title,
+    });
 
     if (alumniError) {
-      console.error('Alumni insert error:', alumniError);
-      return res.status(500).json({ error: 'Failed to create alumni profile' });
-    }
-    // Insert company
-    const { error: companyError } = await db
-      .from('companies')
-      .insert({
-        alumni_id: newAlumni.id,
-        user_id: newUser.id,
-      });
-
-    if (companyError) {
-      console.error('Company insert error:', companyError);
-      return res.status(500).json({ error: 'Failed to create company' });
+      console.error("Alumni insert error:", alumniError);
+      await deleteSupabaseUser(supabaseUser.id);
+      await db.from("users").delete().eq("id", supabaseUser.id);
+      return res.status(500).json({ error: "Failed to create alumni profile" });
     }
 
-    res.status(201).json({ message: "Alumni registered successfully" });
+    res.status(201).json({
       message:
         "Registration submitted successfully. You will receive an email once your account has been verified by an administrator.",
+      userId: supabaseUser.id,
     });
   } catch (error) {
     console.error("Alumni Registration Error:", error);
@@ -255,21 +360,26 @@ const generateOTP = () => {
 };
 
 // ==================== EMAIL SENDER ====================
+// Temporarily disabled - just logs email content
 const sendEmail = async (to, subject, text) => {
-  const transporter = nodemailer.createTransport({
-    service: "Gmail",
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS,
-    },
-  });
-
-  await transporter.sendMail({
-    from: process.env.EMAIL_USER,
-    to,
-    subject,
-    text,
-  });
+  console.log(`📧 EMAIL DISABLED - Would send to: ${to}`);
+  console.log(`Subject: ${subject}`);
+  console.log(`Body: ${text}`);
+  console.log('---');
+  // Original code commented out:
+  // const transporter = nodemailer.createTransport({
+  //   service: "Gmail",
+  //   auth: {
+  //     user: process.env.EMAIL_USER,
+  //     pass: process.env.EMAIL_PASS,
+  //   },
+  // });
+  // await transporter.sendMail({
+  //   from: process.env.EMAIL_USER,
+  //   to,
+  //   subject,
+  //   text,
+  // });
 };
 
 // ==================== FORGOT PASSWORD: GENERATE OTP ====================
@@ -348,30 +458,55 @@ const resetPasswordWithOTP = async (req, res) => {
 
   try {
     const { data: otpEntry, error: otpError } = await db
-      .from('otp_verifications')
-      .select('*')
-      .eq('email', email)
-      .eq('otp', otp)
-      .gt('expires_at', new Date().toISOString())
+      .from("otp_verifications")
+      .select("*")
+      .eq("email", email)
+      .eq("otp", otp)
+      .gt("expires_at", new Date().toISOString())
       .single();
 
     if (otpError || !otpEntry) {
       return res.status(400).json({ error: "Invalid or expired OTP" });
     }
 
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    const { data: userRow, error: userLookupError } = await db
+      .from("users")
+      .select("id")
+      .eq("email", email)
+      .maybeSingle();
 
-    const { error: updateError } = await db
-      .from('users')
-      .update({ password_hash: hashedPassword })
-      .eq('email', email);
-
-    if (updateError) {
-      console.error('Password update error:', updateError);
-      return res.status(500).json({ error: 'Failed to update password' });
+    if (userLookupError) {
+      console.error("Password reset user lookup error:", userLookupError);
+      return res.status(500).json({ error: "Failed to locate user" });
     }
 
-    await db.from('otp_verifications').delete().eq('email', email).eq('otp', otp);
+    if (!userRow) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    const { error: authUpdateError } = await db.supabase.auth.admin.updateUserById(
+      userRow.id,
+      { password: newPassword }
+    );
+
+    if (authUpdateError) {
+      console.error("Supabase password update error:", authUpdateError);
+      return res.status(500).json({ error: "Failed to update Supabase password" });
+    }
+
+    const { error: updateError } = await db
+      .from("users")
+      .update({ password_hash: hashedPassword })
+      .eq("id", userRow.id);
+
+    if (updateError) {
+      console.error("Password update error:", updateError);
+      return res.status(500).json({ error: "Failed to update password" });
+    }
+
+    await db.from("otp_verifications").delete().eq("email", email).eq("otp", otp);
 
     res.json({ message: "Password reset successful" });
   } catch (error) {
@@ -460,22 +595,14 @@ const verifyEmailWithOTP = async (req, res) => {
 // ================== Logout ==================
 const logout = async (req, res) => {
   try {
-    const token = req.headers.authorization?.split(" ")[1];
+    const refreshToken = req.body?.refreshToken;
 
-    if (!token) {
-      return res.status(400).json({ error: "No token provided" });
+    if (refreshToken) {
+      const { error } = await db.supabase.auth.admin.signOut(refreshToken);
+      if (error) {
+        console.warn("Supabase admin signOut failed", error);
+      }
     }
-
-    // Optional: verify the token before logout (for safety)
-    try {
-      jwt.verify(token, process.env.JWT_SECRET);
-    } catch (err) {
-      return res.status(401).json({ error: "Invalid or expired token" });
-    }
-
-    // Since JWTs are stateless, you can't actually invalidate it on the server
-    // unless you use a blacklist table or cache (e.g., Redis).
-    // For now, just instruct the client to delete it.
 
     res.status(200).json({
       success: true,
@@ -487,13 +614,45 @@ const logout = async (req, res) => {
   }
 };
 
+const startGoogleOAuth = async (req, res) => {
+  try {
+    const redirectTo =
+      req.query.redirectTo ||
+      `${process.env.FRONTEND_URL || "http://localhost:5173"}/auth/callback`;
+    const publicClient = requirePublicClient();
+    const { data, error } = await publicClient.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo,
+        scopes: "email profile",
+      },
+    });
+
+    if (error) {
+      console.error("Google OAuth init error:", error);
+      return res.status(500).json({ error: error.message || "Failed to start Google OAuth" });
+    }
+
+    if (!data?.url) {
+      return res.status(500).json({ error: "Supabase did not return an OAuth URL" });
+    }
+
+    res.json({ url: data.url });
+  } catch (error) {
+    console.error("Google OAuth handler error:", error);
+    res.status(500).json({ error: "Unable to start Google OAuth" });
+  }
+};
+
 module.exports = {
   registerStudent,
   login,
+  refreshSession,
   registerAlumni,
   forgotPasswordGenerateOtp,
   resetPasswordWithOTP,
   generateEmailVerificationOTP,
   verifyEmailWithOTP,
   logout,
+  startGoogleOAuth,
 };

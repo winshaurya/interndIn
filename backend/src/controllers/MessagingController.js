@@ -1,17 +1,22 @@
 // src/controllers/MessagingController.js
 const db = require("../config/db");
 
+const getUserId = (req) => req.user?.userId ?? req.user?.id;
+const nowIso = () => new Date().toISOString();
+const convoClause = (a, b) =>
+  `and(sender_id.eq.${a},receiver_id.eq.${b}),and(sender_id.eq.${b},receiver_id.eq.${a})`;
+
 // ============ Helper: Check if users are connected ============
 const checkConnection = async (userId, otherUserId) => {
-  const connection = await db("connections")
-    .where(function () {
-      this.where({ sender_id: userId, receiver_id: otherUserId })
-        .orWhere({ sender_id: otherUserId, receiver_id: userId });
-    })
-    .andWhere({ status: "accepted" })
-    .first();
+  const { data, error } = await db
+    .from("connections")
+    .select("id")
+    .or(convoClause(userId, otherUserId))
+    .eq("status", "accepted")
+    .limit(1);
 
-  return !!connection;
+  if (error) throw error;
+  return Boolean(data?.length);
 };
 
 // ============ POST /messages ============
@@ -19,7 +24,11 @@ const checkConnection = async (userId, otherUserId) => {
 exports.sendMessage = async (req, res) => {
   try {
     const { receiver_id, content } = req.body;
-    const sender_id = req.user.id;
+    const sender_id = getUserId(req);
+
+    if (!sender_id) {
+      return res.status(401).json({ success: false, message: "Unauthenticated" });
+    }
 
     if (!receiver_id || !content) {
       return res
@@ -27,7 +36,6 @@ exports.sendMessage = async (req, res) => {
         .json({ success: false, message: "Receiver and content required" });
     }
 
-    // Check if connection exists
     const connected = await checkConnection(sender_id, receiver_id);
     if (!connected) {
       return res.status(403).json({
@@ -36,17 +44,22 @@ exports.sendMessage = async (req, res) => {
       });
     }
 
-    const [message] = await db("messages")
+    const { data, error } = await db
+      .from("messages")
       .insert({
         sender_id,
         receiver_id,
         content,
         is_read: false,
-        created_at: new Date(),
+        created_at: nowIso(),
+        updated_at: nowIso(),
       })
-      .returning("*");
+      .select("*")
+      .single();
 
-    res.status(201).json({ success: true, data: message });
+    if (error) throw error;
+
+    res.status(201).json({ success: true, data });
   } catch (error) {
     console.error("Error sending message:", error);
     res.status(500).json({ success: false, message: "Server error" });
@@ -58,9 +71,19 @@ exports.sendMessage = async (req, res) => {
 exports.getConversation = async (req, res) => {
   try {
     const { connectionId } = req.params;
-    const userId = req.user.id;
+    const userId = getUserId(req);
 
-    const connection = await db("connections").where({ id: connectionId }).first();
+    if (!userId) {
+      return res.status(401).json({ success: false, message: "Unauthenticated" });
+    }
+
+    const { data: connection, error: connectionError } = await db
+      .from("connections")
+      .select("*")
+      .eq("id", connectionId)
+      .maybeSingle();
+
+    if (connectionError) throw connectionError;
 
     if (!connection) {
       return res
@@ -68,7 +91,6 @@ exports.getConversation = async (req, res) => {
         .json({ success: false, message: "Connection not found" });
     }
 
-    // Ensure user is part of this connection
     if (
       connection.sender_id !== userId &&
       connection.receiver_id !== userId
@@ -79,19 +101,15 @@ exports.getConversation = async (req, res) => {
       });
     }
 
-    const messages = await db("messages")
-      .where(function () {
-        this.where({
-          sender_id: connection.sender_id,
-          receiver_id: connection.receiver_id,
-        }).orWhere({
-          sender_id: connection.receiver_id,
-          receiver_id: connection.sender_id,
-        });
-      })
-      .orderBy("created_at", "asc");
+    const { data: messages, error: messagesError } = await db
+      .from("messages")
+      .select("*")
+      .or(convoClause(connection.sender_id, connection.receiver_id))
+      .order("created_at", { ascending: true });
 
-    res.json({ success: true, data: messages });
+    if (messagesError) throw messagesError;
+
+    res.json({ success: true, data: messages || [] });
   } catch (error) {
     console.error("Error fetching conversation:", error);
     res.status(500).json({ success: false, message: "Server error" });
@@ -102,13 +120,22 @@ exports.getConversation = async (req, res) => {
 // Fetch unread messages for logged-in user
 exports.getUnreadMessages = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = getUserId(req);
 
-    const messages = await db("messages")
-      .where({ receiver_id: userId, is_read: false })
-      .orderBy("created_at", "desc");
+    if (!userId) {
+      return res.status(401).json({ success: false, message: "Unauthenticated" });
+    }
 
-    res.json({ success: true, data: messages });
+    const { data, error } = await db
+      .from("messages")
+      .select("*")
+      .eq("receiver_id", userId)
+      .eq("is_read", false)
+      .order("created_at", { ascending: false });
+
+    if (error) throw error;
+
+    res.json({ success: true, data: data || [] });
   } catch (error) {
     console.error("Error fetching unread messages:", error);
     res.status(500).json({ success: false, message: "Server error" });
@@ -120,11 +147,20 @@ exports.getUnreadMessages = async (req, res) => {
 exports.markMessageRead = async (req, res) => {
   try {
     const { id } = req.params;
-    const userId = req.user.id;
+    const userId = getUserId(req);
 
-    const message = await db("messages")
-      .where({ id, receiver_id: userId })
-      .first();
+    if (!userId) {
+      return res.status(401).json({ success: false, message: "Unauthenticated" });
+    }
+
+    const { data: message, error: messageError } = await db
+      .from("messages")
+      .select("id")
+      .eq("id", id)
+      .eq("receiver_id", userId)
+      .maybeSingle();
+
+    if (messageError) throw messageError;
 
     if (!message) {
       return res
@@ -132,9 +168,12 @@ exports.markMessageRead = async (req, res) => {
         .json({ success: false, message: "Message not found" });
     }
 
-    await db("messages")
-      .where({ id })
-      .update({ is_read: true, updated_at: new Date() });
+    const { error } = await db
+      .from("messages")
+      .update({ is_read: true, updated_at: nowIso() })
+      .eq("id", id);
+
+    if (error) throw error;
 
     res.json({ success: true, message: "Message marked as read" });
   } catch (error) {

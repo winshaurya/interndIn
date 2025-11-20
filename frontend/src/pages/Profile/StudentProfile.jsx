@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useOutletContext } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,6 +31,14 @@ import {
 const StudentProfile = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const outletContext = useOutletContext();
+
+  useEffect(() => {
+    outletContext?.setHeaderMeta?.({
+      title: "Profile",
+      description: "Keep your academic and professional details updated.",
+    });
+  }, [outletContext]);
 
   const { data: profileData, isLoading } = useQuery({
     queryKey: ['student-profile'],
@@ -54,15 +63,25 @@ const StudentProfile = () => {
     },
   });
 
-  const profile = profileData?.data;
+  const profile = profileData?.data?.profile;
 
   const [profileDataState, setProfileDataState] = useState({
     name: "",
+    email: "",
+    phone: "",
+    dateOfBirth: "",
     studentId: "",
     branch: "",
+    currentYear: "",
     gradYear: "",
     skills: [],
     resumeUrl: "",
+    cgpa: "",
+    achievements: "",
+    experiences: [],
+    desiredRoles: [],
+    preferredLocations: [],
+    workMode: "",
   });
 
   // Update state when profile loads
@@ -70,22 +89,96 @@ const StudentProfile = () => {
     if (profile) {
       setProfileDataState({
         name: profile.name || "",
+        email: profile.email || "",
+        phone: profile.phone || "",
+        dateOfBirth: profile.dateOfBirth || "",
         studentId: profile.student_id || "",
         branch: profile.branch || "",
+        currentYear: profile.currentYear || "",
         gradYear: profile.grad_year || "",
-        skills: profile.skills || [],
+        skills: profile.skills ? (Array.isArray(profile.skills) ? profile.skills : profile.skills.split(", ")) : [],
         resumeUrl: profile.resume_url || "",
+        cgpa: profile.cgpa || "",
+        achievements: profile.achievements || "",
+        experiences: profile.experiences || [],
+        desiredRoles: profile.desiredRoles || [],
+        preferredLocations: profile.preferredLocations || [],
+        workMode: profile.workMode || "",
       });
     }
   }, [profile]);
 
+  const fileInputRef = useRef(null);
+  const [isUploading, setIsUploading] = useState(false);
+
+  const handleFileSelect = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileUpload = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    // Validate file type
+    const allowedTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain'];
+    if (!allowedTypes.includes(file.type)) {
+      toast({
+        title: "Invalid File Type",
+        description: "Please upload a PDF, DOC, DOCX, or TXT file.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate file size (5MB limit)
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: "File Too Large",
+        description: "Please upload a file smaller than 5MB.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      const response = await apiClient.uploadResume(file);
+      
+      // Update local state with new resume URL
+      setProfileDataState(prev => ({
+        ...prev,
+        resumeUrl: response.resumeUrl,
+      }));
+
+      // Refresh profile data
+      queryClient.invalidateQueries(['student-profile']);
+
+      toast({
+        title: "Resume Uploaded",
+        description: "Your resume has been uploaded successfully!",
+      });
+    } catch (error) {
+      toast({
+        title: "Upload Failed",
+        description: error.message || "Failed to upload resume",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploading(false);
+      // Clear the file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
   const profileSections = [
-    { id: "personal", completed: !!(profileData.name && profileData.email && profileData.phone), weight: 20 },
-    { id: "academic", completed: !!(profileData.branch && profileData.currentYear), weight: 20 },
-    { id: "skills", completed: profileData.skills.length >= 1, weight: 20 },
-    { id: "experience", completed: profileData.experiences.length >= 1, weight: 20 },
-    { id: "resume", completed: profileData.resumeUploaded, weight: 10 },
-    { id: "preferences", completed: profileData.desiredRoles.length > 0, weight: 10 },
+    { id: "personal", completed: !!(profile?.name && profile?.email && profile?.phone), weight: 20 },
+    { id: "academic", completed: !!(profile?.branch && profile?.currentYear), weight: 20 },
+    { id: "skills", completed: profile?.skills?.length >= 1, weight: 20 },
+    { id: "experience", completed: profile?.experiences?.length >= 1, weight: 20 },
+    { id: "resume", completed: profile?.resumeUploaded, weight: 10 },
+    { id: "preferences", completed: profile?.desiredRoles?.length > 0, weight: 10 },
   ];
 
   const completionPercentage = profileSections.reduce(
@@ -113,18 +206,29 @@ const StudentProfile = () => {
   };
 
   const addSkill = (skillName) => {
-    if (!profileDataState.skills.find(s => s === skillName)) {
-      setProfileDataState(prev => ({ ...prev, skills: [...prev.skills, skillName] }));
+    if (!profileDataState.skills?.find(s => s === skillName)) {
+      setProfileDataState(prev => ({ ...prev, skills: [...(prev.skills || []), skillName] }));
     }
   };
 
   const removeSkill = (skillName) => {
-    setProfileDataState(prev => ({ ...prev, skills: prev.skills.filter(s => s !== skillName) }));
+    setProfileDataState(prev => ({ ...prev, skills: (prev.skills || []).filter(s => s !== skillName) }));
   };
 
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-subtle flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+          <p className="text-muted-foreground">Loading your profile...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-gradient-subtle p-4">
-      <div className="max-w-6xl mx-auto space-y-6">
+    <div className="space-y-6">
+      <div className="max-w-6xl mx-auto p-4 space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -165,19 +269,19 @@ const StudentProfile = () => {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="name">Full Name</Label>
-                        <Input id="name" value={profileData.name} onChange={e => setProfileData(prev => ({ ...prev, name: e.target.value }))} placeholder="Enter your full name"/>
+                        <Input id="name" value={profileDataState.name} onChange={e => setProfileDataState(prev => ({ ...prev, name: e.target.value }))} placeholder="Enter your full name"/>
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="email">Institute Email</Label>
-                        <Input id="email" type="email" value={profileData.email} onChange={e => setProfileData(prev => ({ ...prev, email: e.target.value }))} placeholder="Enter your email"/>
+                        <Input id="email" type="email" value={profileDataState.email} onChange={e => setProfileDataState(prev => ({ ...prev, email: e.target.value }))} placeholder="Enter your email"/>
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="phone">Phone Number</Label>
-                        <Input id="phone" value={profileData.phone} onChange={e => setProfileData(prev => ({ ...prev, phone: e.target.value }))} placeholder="Enter your phone number"/>
+                        <Input id="phone" value={profileDataState.phone} onChange={e => setProfileDataState(prev => ({ ...prev, phone: e.target.value }))} placeholder="Enter your phone number"/>
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="dob">Date of Birth</Label>
-                        <Input id="dob" type="date" value={profileData.dateOfBirth} onChange={e => setProfileData(prev => ({ ...prev, dateOfBirth: e.target.value }))}/>
+                        <Input id="dob" type="date" value={profileDataState.dateOfBirth} onChange={e => setProfileDataState(prev => ({ ...prev, dateOfBirth: e.target.value }))}/>
                       </div>
                     </div>
                   </CardContent>
@@ -192,14 +296,14 @@ const StudentProfile = () => {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="branch">Branch</Label>
-                        <Select value={profileData.branch} onValueChange={value => setProfileData(prev => ({ ...prev, branch: value }))}>
+                        <Select value={profileDataState.branch} onValueChange={value => setProfileDataState(prev => ({ ...prev, branch: value }))}>
                           <SelectTrigger><SelectValue placeholder="Select branch"/></SelectTrigger>
                           <SelectContent>{branches.map(branch => <SelectItem key={branch} value={branch}>{branch}</SelectItem>)}</SelectContent>
                         </Select>
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="year">Current Year</Label>
-                        <Select value={profileData.currentYear} onValueChange={value => setProfileData(prev => ({ ...prev, currentYear: value }))}>
+                        <Select value={profileDataState.currentYear} onValueChange={value => setProfileDataState(prev => ({ ...prev, currentYear: value }))}>
                           <SelectTrigger><SelectValue placeholder="Select year"/></SelectTrigger>
                           <SelectContent>
                             <SelectItem value="First Year">First Year</SelectItem>
@@ -212,12 +316,12 @@ const StudentProfile = () => {
                       </div>
                       <div className="space-y-2">
                         <Label>CGPA</Label>
-                        <Input type="number" step="0.1" min="0" max="10" value={profileData.cgpa} onChange={e => setProfileData(prev => ({ ...prev, cgpa: e.target.value }))} placeholder="Enter CGPA"/>
+                        <Input type="number" step="0.1" min="0" max="10" value={profileDataState.cgpa} onChange={e => setProfileDataState(prev => ({ ...prev, cgpa: e.target.value }))} placeholder="Enter CGPA"/>
                       </div>
                     </div>
                     <div className="space-y-2">
                       <Label>Achievements</Label>
-                      <Textarea value={profileData.achievements} onChange={e => setProfileData(prev => ({ ...prev, achievements: e.target.value }))} placeholder="Awards, recognitions, certifications..." rows={3}/>
+                      <Textarea value={profileDataState.achievements} onChange={e => setProfileDataState(prev => ({ ...prev, achievements: e.target.value }))} placeholder="Awards, recognitions, certifications..." rows={3}/>
                     </div>
                   </CardContent>
                 </Card>
@@ -232,30 +336,15 @@ const StudentProfile = () => {
                       <Label>Add Skills</Label>
                       <Select onValueChange={addSkill}>
                         <SelectTrigger><SelectValue placeholder="Select a skill to add"/></SelectTrigger>
-                        <SelectContent>{skillOptions.filter(skill => !profileData.skills.find(s => s.name === skill)).map(skill => <SelectItem key={skill} value={skill}>{skill}</SelectItem>)}</SelectContent>
+                        <SelectContent>{skillOptions.filter(skill => !profileDataState.skills?.find(s => s === skill)).map(skill => <SelectItem key={skill} value={skill}>{skill}</SelectItem>)}</SelectContent>
                       </Select>
                     </div>
                     <div className="space-y-4">
-                      {profileData.skills.map(skill => (
-                        <div key={skill.name} className="p-4 border rounded-lg space-y-3">
+                      {profileDataState.skills?.map(skill => (
+                        <div key={skill} className="p-4 border rounded-lg space-y-3">
                           <div className="flex items-center justify-between">
-                            <Badge variant="outline">{skill.name}</Badge>
-                            <Button variant="ghost" size="sm" onClick={() => removeSkill(skill.name)}><X className="w-4 h-4"/></Button>
-                          </div>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                              <Label>Proficiency (1-5)</Label>
-                              <div className="flex items-center gap-2">
-                                {[1,2,3,4,5].map(level => (
-                                  <Button key={level} variant={skill.proficiency >= level ? "default":"outline"} size="sm" className="w-8 h-8 p-0" onClick={() => updateSkill(skill.name,'proficiency',level)}><Star className="w-4 h-4"/></Button>
-                                ))}
-                                <span className="text-sm text-muted-foreground ml-2">{skill.proficiency}/5</span>
-                              </div>
-                            </div>
-                            <div className="space-y-2">
-                              <Label>Years of Experience</Label>
-                              <Input type="number" step="0.5" min="0" value={skill.experience} onChange={e => updateSkill(skill.name,'experience',parseFloat(e.target.value) || 0)} placeholder="1.5"/>
-                            </div>
+                            <Badge variant="outline">{skill}</Badge>
+                            <Button variant="ghost" size="sm" onClick={() => removeSkill(skill)}><X className="w-4 h-4"/></Button>
                           </div>
                         </div>
                       ))}
@@ -269,32 +358,32 @@ const StudentProfile = () => {
                 <Card>
                   <CardHeader><CardTitle className="flex items-center gap-2"><Briefcase className="w-5 h-5"/> Experience & Projects</CardTitle></CardHeader>
                   <CardContent className="space-y-4">
-                    {profileData.experiences.map((exp,index) => (
+                    {profileDataState.experiences?.map((exp,index) => (
                       <div key={index} className="p-4 border rounded-lg space-y-3">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div className="space-y-2"><Label>Position/Role</Label><Input value={exp.title} onChange={e => {
-                            const newExp = [...profileData.experiences]; newExp[index].title = e.target.value; setProfileData(prev=>({...prev,experiences:newExp}));
+                            const newExp = [...profileDataState.experiences]; newExp[index].title = e.target.value; setProfileDataState(prev=>({...prev,experiences:newExp}));
                           }}/></div>
                           <div className="space-y-2"><Label>Company</Label><Input value={exp.company} onChange={e => {
-                            const newExp = [...profileData.experiences]; newExp[index].company = e.target.value; setProfileData(prev=>({...prev,experiences:newExp}));
+                            const newExp = [...profileDataState.experiences]; newExp[index].company = e.target.value; setProfileDataState(prev=>({...prev,experiences:newExp}));
                           }}/></div>
                           <div className="space-y-2"><Label>Duration</Label><Input value={exp.duration} onChange={e => {
-                            const newExp = [...profileData.experiences]; newExp[index].duration = e.target.value; setProfileData(prev=>({...prev,experiences:newExp}));
+                            const newExp = [...profileDataState.experiences]; newExp[index].duration = e.target.value; setProfileDataState(prev=>({...prev,experiences:newExp}));
                           }}/></div>
-                          <div className="space-y-2"><Label>Link</Label><Input value={exp.link} onChange={e => {
-                            const newExp = [...profileData.experiences]; newExp[index].link = e.target.value; setProfileData(prev=>({...prev,experiences:newExp}));
+                          <div className="space-y-2"><Label>Project Link</Label><Input value={exp.link} onChange={e => {
+                            const newExp = [...profileDataState.experiences]; newExp[index].link = e.target.value; setProfileDataState(prev=>({...prev,experiences:newExp}));
                           }}/></div>
                         </div>
                         <div className="space-y-2">
                           <Label>Description</Label>
                           <Textarea value={exp.description} onChange={e=>{
-                            const newExp = [...profileData.experiences]; newExp[index].description=e.target.value; setProfileData(prev=>({...prev,experiences:newExp}));
+                            const newExp = [...profileDataState.experiences]; newExp[index].description=e.target.value; setProfileDataState(prev=>({...prev,experiences:newExp}));
                           }} rows={3}/>
                         </div>
                       </div>
                     ))}
                     <Button variant="outline" className="w-full" onClick={()=>{
-                      setProfileData(prev=>({...prev,experiences:[...prev.experiences,{title:"",company:"",duration:"",link:"",description:""}]}));
+                      setProfileDataState(prev=>({...prev,experiences:[...(prev.experiences || []),{title:"",company:"",duration:"",link:"",description:""}]}));
                     }}><Plus className="w-4 h-4 mr-2"/> Add Experience</Button>
                   </CardContent>
                 </Card>
@@ -305,21 +394,62 @@ const StudentProfile = () => {
                 <Card>
                   <CardHeader><CardTitle className="flex items-center gap-2"><FileText className="w-5 h-5"/> Resume/CV</CardTitle></CardHeader>
                   <CardContent className="space-y-4">
-                    {!profileData.resumeUploaded ? (
+                    {!profileDataState.resumeUrl ? (
                       <div className="border-2 border-dashed border-border rounded-lg p-8 text-center">
                         <Upload className="w-12 h-12 text-muted-foreground mx-auto mb-4"/>
                         <h3 className="font-medium mb-2">Upload your resume</h3>
-                        <Button variant="outline"><Upload className="w-4 h-4 mr-2"/> Choose File</Button>
+                        <Button 
+                          variant="outline" 
+                          onClick={handleFileSelect}
+                          disabled={isUploading}
+                        >
+                          {isUploading ? (
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          ) : (
+                            <Upload className="w-4 h-4 mr-2" />
+                          )}
+                          {isUploading ? "Uploading..." : "Choose File"}
+                        </Button>
                       </div>
                     ) : (
                       <div className="flex items-center justify-between p-4 bg-accent rounded-lg">
                         <div className="flex items-center gap-3">
                           <FileText className="w-8 h-8 text-primary"/>
-                          <div><p className="font-medium">{profileData.resumeFileName}</p><p className="text-sm text-muted-foreground">Uploaded successfully</p></div>
+                          <div>
+                            <p className="font-medium">Resume Uploaded</p>
+                            <p className="text-sm text-muted-foreground">
+                              <a 
+                                href={profileDataState.resumeUrl} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="text-primary hover:underline"
+                              >
+                                View Resume
+                              </a>
+                            </p>
+                          </div>
                         </div>
-                        <Button variant="outline"><Upload className="w-4 h-4 mr-2"/> Replace</Button>
+                        <Button 
+                          variant="outline" 
+                          onClick={handleFileSelect}
+                          disabled={isUploading}
+                        >
+                          {isUploading ? (
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          ) : (
+                            <Upload className="w-4 h-4 mr-2" />
+                          )}
+                          {isUploading ? "Uploading..." : "Replace"}
+                        </Button>
                       </div>
                     )}
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".pdf,.doc,.docx,.txt"
+                      onChange={handleFileUpload}
+                      className="hidden"
+                    />
                   </CardContent>
                 </Card>
               </TabsContent>
@@ -331,19 +461,19 @@ const StudentProfile = () => {
                   <CardContent className="space-y-6">
                     <div className="space-y-2">
                       <Label>Desired Roles</Label>
-                      <Input placeholder="Enter roles separated by commas" value={profileData.desiredRoles.join(', ')} onChange={e=>{
-                        setProfileData(prev=>({...prev,desiredRoles:e.target.value.split(',').map(r=>r.trim())}));
+                      <Input placeholder="Enter roles separated by commas" value={profileDataState.desiredRoles.join(', ')} onChange={e=>{
+                        setProfileDataState(prev=>({...prev,desiredRoles:e.target.value.split(',').map(r=>r.trim())}));
                       }}/>
                     </div>
                     <div className="space-y-2">
                       <Label>Preferred Locations</Label>
-                      <Input placeholder="Enter locations separated by commas" value={profileData.preferredLocations.join(', ')} onChange={e=>{
-                        setProfileData(prev=>({...prev,preferredLocations:e.target.value.split(',').map(l=>l.trim())}));
+                      <Input placeholder="Enter locations separated by commas" value={profileDataState.preferredLocations.join(', ')} onChange={e=>{
+                        setProfileDataState(prev=>({...prev,preferredLocations:e.target.value.split(',').map(l=>l.trim())}));
                       }}/>
                     </div>
                     <div className="space-y-2">
                       <Label>Work Mode</Label>
-                      <Select value={profileData.workMode} onValueChange={value=>setProfileData(prev=>({...prev,workMode:value}))}>
+                      <Select value={profileDataState.workMode} onValueChange={value=>setProfileDataState(prev=>({...prev,workMode:value}))}>
                         <SelectTrigger className="w-48"><SelectValue/></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="remote">Remote</SelectItem>

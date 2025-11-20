@@ -7,8 +7,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Upload, X, FileText, AlertCircle, ChevronLeft, ChevronRight, User, FileUp, HelpCircle, Check } from "lucide-react";
+import { Upload, X, FileText, AlertCircle, ChevronLeft, ChevronRight, User, FileUp, HelpCircle, Check, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { apiClient } from "@/lib/api";
 
 export default function ApplicationModal({ isOpen, onClose, jobDetails }) {
   const [currentStep, setCurrentStep] = useState(1);
@@ -31,7 +32,18 @@ export default function ApplicationModal({ isOpen, onClose, jobDetails }) {
     additionalDocs: []
   });
   
+  const [uploadedFileUrls, setUploadedFileUrls] = useState({
+    resume: null,
+    portfolio: null,
+    additionalDocs: []
+  });
+  
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [uploadingFiles, setUploadingFiles] = useState({
+    resume: false,
+    portfolio: false,
+    additionalDocs: []
+  });
   const { toast } = useToast();
 
   const steps = [
@@ -58,14 +70,71 @@ export default function ApplicationModal({ isOpen, onClose, jobDetails }) {
     }));
   };
 
-  const handleFileUpload = (type, file) => {
-    if (type === "additionalDocs") {
-      setUploadedFiles(prev => ({
-        ...prev,
-        additionalDocs: [...prev.additionalDocs, file]
-      }));
-    } else {
-      setUploadedFiles(prev => ({ ...prev, [type]: file }));
+  const handleFileUpload = async (type, file) => {
+    // Validate file type
+    const allowedTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain'];
+    if (!allowedTypes.includes(file.type)) {
+      toast({
+        title: "Invalid File Type",
+        description: "Please upload a PDF, DOC, DOCX, or TXT file.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate file size (5MB limit)
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: "File Too Large",
+        description: "Please upload a file smaller than 5MB.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Set uploading state
+    setUploadingFiles(prev => ({ ...prev, [type]: true }));
+
+    try {
+      let response;
+      if (type === 'resume') {
+        response = await apiClient.uploadResume(file);
+      } else if (type === 'portfolio') {
+        // For portfolio/cover letter, we'll use the job application upload
+        // This will be handled during submission
+        response = { fileUrl: URL.createObjectURL(file) }; // Temporary for now
+      }
+
+      // Store the file locally for display and the URL for submission
+      if (type === "additionalDocs") {
+        setUploadedFiles(prev => ({
+          ...prev,
+          additionalDocs: [...prev.additionalDocs, file]
+        }));
+        setUploadedFileUrls(prev => ({
+          ...prev,
+          additionalDocs: [...prev.additionalDocs, response.fileUrl || response.resumeUrl]
+        }));
+      } else {
+        setUploadedFiles(prev => ({ ...prev, [type]: file }));
+        setUploadedFileUrls(prev => ({ 
+          ...prev, 
+          [type]: response.fileUrl || response.resumeUrl 
+        }));
+      }
+
+      toast({
+        title: "File Uploaded",
+        description: `${file.name} has been uploaded successfully.`,
+      });
+    } catch (error) {
+      toast({
+        title: "Upload Failed",
+        description: error.message || "Failed to upload file",
+        variant: "destructive",
+      });
+    } finally {
+      setUploadingFiles(prev => ({ ...prev, [type]: false }));
     }
   };
 
@@ -75,8 +144,13 @@ export default function ApplicationModal({ isOpen, onClose, jobDetails }) {
         ...prev,
         additionalDocs: prev.additionalDocs.filter((_, i) => i !== index)
       }));
+      setUploadedFileUrls(prev => ({
+        ...prev,
+        additionalDocs: prev.additionalDocs.filter((_, i) => i !== index)
+      }));
     } else {
       setUploadedFiles(prev => ({ ...prev, [type]: null }));
+      setUploadedFileUrls(prev => ({ ...prev, [type]: null }));
     }
   };
 
@@ -120,25 +194,89 @@ export default function ApplicationModal({ isOpen, onClose, jobDetails }) {
 
     setIsSubmitting(true);
     
-    setTimeout(() => {
-      toast({ title: "Application Submitted!", description: "We'll review your application and get back to you soon.", variant: "default" });
-      setIsSubmitting(false);
+    try {
+      // Prepare application data
+      const applicationData = {
+        jobId: jobDetails.id,
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        email: formData.email,
+        phone: formData.phone,
+        coverLetter: formData.coverLetter,
+        resumeUrl: uploadedFileUrls.resume,
+        portfolioUrl: uploadedFileUrls.portfolio,
+        customAnswers: formData.customAnswers,
+        expectedSalary: formData.expectedSalary,
+        availableStartDate: formData.availableStartDate,
+        ndaAccepted: formData.ndaAccepted,
+      };
+
+      // Submit the application
+      await apiClient.applyForJob(applicationData);
+
+      toast({ 
+        title: "Application Submitted!", 
+        description: "We'll review your application and get back to you soon.", 
+        variant: "default" 
+      });
+      
       onClose();
 
+      // Reset form
       setCurrentStep(1);
-      setFormData({ firstName: "", lastName: "", email: "", phone: "", coverLetter: "", whyInterestedSGSITS: "", expectedSalary: "", availableStartDate: "", ndaAccepted: false, customAnswers: {} });
+      setFormData({ 
+        firstName: "", 
+        lastName: "", 
+        email: "", 
+        phone: "", 
+        coverLetter: "", 
+        whyInterestedSGSITS: "", 
+        expectedSalary: "", 
+        availableStartDate: "", 
+        ndaAccepted: false, 
+        customAnswers: {} 
+      });
       setUploadedFiles({ resume: null, portfolio: null, additionalDocs: [] });
-    }, 2000);
+      setUploadedFileUrls({ resume: null, portfolio: null, additionalDocs: [] });
+      setUploadingFiles({ resume: false, portfolio: false, additionalDocs: [] });
+      setUploadedFileUrls({ resume: null, portfolio: null, additionalDocs: [] });
+      setUploadingFiles({ resume: false, portfolio: false, additionalDocs: [] });
+    } catch (error) {
+      toast({ 
+        variant: "destructive", 
+        title: "Submission Failed", 
+        description: error.message || "Failed to submit application" 
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const FileUploadSection = ({ title, type, accept, required = false }) => (
     <div className="space-y-2" onClick={e => e.stopPropagation()}>
       <Label className="text-sm font-medium">{title} {required && <span className="text-destructive">*</span>}</Label>
-      <div className="border-2 border-dashed border-border rounded-lg p-4 text-center hover:border-primary/50 transition-colors">
-        <Input type="file" accept={accept} onChange={(e) => e.target.files[0] && handleFileUpload(type, e.target.files[0])} className="hidden" id={`file-${type}`} />
-        <label htmlFor={`file-${type}`} className="cursor-pointer">
-          <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-          <p className="text-sm text-muted-foreground">Click to upload or drag and drop</p>
+      <div className={`border-2 border-dashed rounded-lg p-4 text-center transition-colors ${
+        uploadingFiles[type] 
+          ? 'border-primary bg-primary/5' 
+          : 'border-border hover:border-primary/50'
+      }`}>
+        <Input 
+          type="file" 
+          accept={accept} 
+          onChange={(e) => e.target.files[0] && handleFileUpload(type, e.target.files[0])} 
+          className="hidden" 
+          id={`file-${type}`}
+          disabled={uploadingFiles[type]}
+        />
+        <label htmlFor={`file-${type}`} className={`cursor-pointer ${uploadingFiles[type] ? 'cursor-not-allowed' : ''}`}>
+          {uploadingFiles[type] ? (
+            <Loader2 className="h-8 w-8 mx-auto mb-2 text-primary animate-spin" />
+          ) : (
+            <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+          )}
+          <p className="text-sm text-muted-foreground">
+            {uploadingFiles[type] ? 'Uploading...' : 'Click to upload or drag and drop'}
+          </p>
           <p className="text-xs text-muted-foreground mt-1">{accept}</p>
         </label>
       </div>

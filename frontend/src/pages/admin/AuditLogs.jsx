@@ -12,6 +12,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Search, Shield, User, Building2, FileText, Settings } from "lucide-react";
+import { useShellHeader } from "@/hooks/useShellHeader";
 
 const mockLogs = [
   {
@@ -124,6 +125,10 @@ const getSeverityColor = (severity) => {
 };
 
 export default function AuditLogs() {
+  useShellHeader({
+    title: "Audit Logs",
+    description: "Trace every administrative event for compliance and incident response.",
+  });
   const [searchTerm, setSearchTerm] = useState("");
   const [severityFilter, setSeverityFilter] = useState("all");
   const [resourceFilter, setResourceFilter] = useState("all");
@@ -139,12 +144,10 @@ export default function AuditLogs() {
   });
 
   return (
-    <div className="p-8 space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-foreground mb-2">Audit Logs</h1>
-        <p className="text-muted-foreground">
-          Track all system activities and security events
-        </p>
+    <div className="space-y-6">
+      <div className="rounded-xl border bg-card p-4">
+        <p className="text-sm uppercase tracking-[0.2em] text-muted-foreground">Security timeline</p>
+        <p className="text-sm text-muted-foreground">Filter by severity or resource to reconstruct events quickly.</p>
       </div>
 
       {/* Stats Cards */}

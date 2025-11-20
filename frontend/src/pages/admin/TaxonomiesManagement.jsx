@@ -24,6 +24,7 @@ import {
   BookOpen
 } from "lucide-react";
 import { StatCard } from "@/components/admin/StatCard";
+import { useShellHeader } from "@/hooks/useShellHeader";
 
 const mockSkills = [
   {
@@ -130,6 +131,10 @@ const mockSynonyms = [
 ];
 
 export default function TaxonomiesManagement() {
+  useShellHeader({
+    title: "Taxonomies",
+    description: "Curate skills, branches, and synonym mappings powering search & matching.",
+  });
   const [skillSearchTerm, setSkillSearchTerm] = useState("");
   const [branchSearchTerm, setBranchSearchTerm] = useState("");
   const [skills, setSkills] = useState(mockSkills);
@@ -151,13 +156,12 @@ export default function TaxonomiesManagement() {
   );
 
   return (
-    <div className="space-y-8 p-8">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">Taxonomies Management</h1>
-          <p className="text-muted-foreground">Manage skills, branches, and data mappings</p>
-        </div>
+    <div className="space-y-8">
+      <div className="rounded-xl border bg-card p-4">
+        <p className="text-sm uppercase tracking-[0.2em] text-muted-foreground">Knowledge graph</p>
+        <p className="text-sm text-muted-foreground">
+          Keep synonyms, skills, and branches tidy so recommendations stay accurate.
+        </p>
       </div>
 
       {/* Stats Cards */}

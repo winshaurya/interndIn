@@ -1,12 +1,10 @@
 {
-  "name": "backend",
+  "name": "interndin-backend",
   "version": "1.0.0",
-  "description": "Alumni_portal",
+  "description": "interndIn",
   "main": "src/app.js",
   "scripts": {
     "start": "nodemon src/app.js",
-    "migrate": "knex migrate:latest --knexfile knexfile.js --env development",
-    "migrate:rollback": "knex migrate:rollback --knexfile knexfile.js --env development",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -21,10 +19,8 @@
     "express": "^5.1.0",
     "joi": "^18.0.1",
     "jsonwebtoken": "^9.0.2",
-    "knex": "^3.1.0",
-    "nodemailer": "^7.0.6",
-    "pg": "^8.16.3",
-    "supabase": "^2.58.5"
+    "multer": "^2.0.2",
+    "nodemailer": "^7.0.6"
   },
   "devDependencies": {
     "nodemon": "^3.1.10"

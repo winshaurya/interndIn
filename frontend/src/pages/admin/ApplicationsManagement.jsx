@@ -24,6 +24,7 @@ import {
   Clock
 } from "lucide-react";
 import { StatCard } from "@/components/admin/StatCard";
+import { useShellHeader } from "@/hooks/useShellHeader";
 
 const mockApplications = [
   {
@@ -113,6 +114,10 @@ const mockApplications = [
 ];
 
 export default function ApplicationsManagement() {
+  useShellHeader({
+    title: "Applications",
+    description: "Track every submission, trigger nudges, and accelerate shortlisting.",
+  });
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [branchFilter, setBranchFilter] = useState("all");
@@ -199,12 +204,13 @@ export default function ApplicationsManagement() {
   const hiredApplications = applications.filter(app => app.status === "Hired").length;
 
   return (
-    <div className="space-y-8 p-8">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+    <div className="space-y-8">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card p-4">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Applications Management</h1>
-          <p className="text-muted-foreground">Track and manage job applications across postings and companies</p>
+          <p className="text-sm uppercase tracking-[0.2em] text-muted-foreground">Engagement queue</p>
+          <p className="text-sm text-muted-foreground">
+            Trigger outreach or nudges for selected applicants right from this workspace.
+          </p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" className="text-primary border-primary hover:bg-primary hover:text-primary-foreground">

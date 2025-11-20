@@ -10,6 +10,7 @@ const {
   deleteUser,
   sendNotification,
   getDashboardStats,
+  updateUserStatus, // newly added
 } = require("../controllers/AdminController");
 const { authenticate, isAdmin } = require("../middleware/authMiddleware");
 
@@ -37,13 +38,19 @@ router.patch(
 router.get("/jobs", authenticate, isAdmin, getAllJobsAdmin);
 router.delete("/jobs/:id", authenticate, isAdmin, deleteJobAdmin);
 
-// User Management
+/**
+ * User Management
+ * Includes status update alias consumed by frontend updateUserStatus()
+ */
 router.get("/users", authenticate, isAdmin, getAllUsers);
+router.put("/users/:id/status", authenticate, isAdmin, updateUserStatus);
 router.delete("/users/:id", authenticate, isAdmin, deleteUser);
 
 // Notifications
 router.post("/notify", authenticate, isAdmin, sendNotification);
 
 router.get("/dashboard", authenticate, isAdmin, getDashboardStats);
+// Analytics alias for frontend getAnalytics()
+router.get("/analytics", authenticate, isAdmin, getDashboardStats);
 
 module.exports = router;

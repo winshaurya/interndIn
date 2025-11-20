@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useSearchParams, useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -8,73 +10,141 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Progress } from "@/components/ui/progress";
 import { Search, Filter, Eye, Download, MessageSquare, X, ArrowLeft } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { useNavigate } from "react-router-dom";
+import { DataState } from "@/components/common/DataState";
+import { apiClient } from "@/lib/api";
 
-const applicantsData = [
-  {
-    id: 1,
-    name: "Jane Smith",
-    class: "Class of 2024",
-    branch: "Information Technology",
-    applicationTime: "9 Jan 2024, 07:45 pm",
-    skillMatch: 92,
-    skills: ["Java", "Spring Boot", "MySQL"],
-    status: "Shortlisted",
-    statusColor: "bg-green-100 text-green-800"
-  },
-  {
-    id: 2,
-    name: "Mike Wilson",
-    class: "Class of 2024", 
-    branch: "Information Technology",
-    applicationTime: "6 Jan 2024, 05:00 pm",
-    skillMatch: 88,
-    skills: ["Python", "Django", "AWS"],
-    status: "Interviewing",
-    statusColor: "bg-blue-100 text-blue-800"
-  },
-  {
-    id: 3,
-    name: "John Doe",
-    class: "Class of 2024",
-    branch: "Computer Science",
-    applicationTime: "10 Jan 2024, 04:00 pm", 
-    skillMatch: 85,
-    skills: ["Python", "Django", "JavaScript"],
-    status: "Submitted",
-    statusColor: "bg-yellow-100 text-yellow-800"
-  },
-  {
-    id: 4,
-    name: "Bob Johnson",
-    class: "Class of 2024", 
-    branch: "Computer Science",
-    applicationTime: "8 Jan 2024, 02:50 pm",
-    skillMatch: 78,
-    skills: ["JavaScript", "Node.js", "MongoDB"],
-    status: "Submitted", 
-    statusColor: "bg-yellow-100 text-yellow-800"
+const statusThemes = {
+  shortlisted: "bg-emerald-100 text-emerald-900 dark:bg-emerald-900 dark:text-emerald-100",
+  interviewing: "bg-blue-100 text-blue-900 dark:bg-blue-900 dark:text-blue-100",
+  interviewing_stage: "bg-blue-100 text-blue-900 dark:bg-blue-900 dark:text-blue-100",
+  submitted: "bg-amber-100 text-amber-900 dark:bg-amber-900 dark:text-amber-100",
+  hired: "bg-primary/15 text-primary",
+  rejected: "bg-red-100 text-red-900 dark:bg-red-900 dark:text-red-100",
+};
+
+const clampPercentage = (value) => {
+  const numeric = Number(value);
+  if (Number.isNaN(numeric)) return 0;
+  return Math.max(0, Math.min(100, numeric));
+};
+
+const normalizeSkills = (skills) => {
+  if (!skills) return [];
+  if (Array.isArray(skills)) {
+    return skills.filter(Boolean);
   }
-];
+  return String(skills)
+    .split(",")
+    .map((skill) => skill.trim())
+    .filter(Boolean);
+};
+
+const normalizeApplicants = (payload) => {
+  if (!payload) return [];
+  let list = [];
+  if (Array.isArray(payload)) {
+    list = payload;
+  } else if (Array.isArray(payload.applicants)) {
+    list = payload.applicants;
+  } else if (Array.isArray(payload.data)) {
+    list = payload.data;
+  } else if (Array.isArray(payload.results)) {
+    list = payload.results;
+  }
+
+  return list.map((entry, index) => {
+    const student = entry.student || entry.profile || {};
+    const fullName = entry.name || [student.firstName, student.lastName].filter(Boolean).join(" ") || student.fullName;
+
+    return {
+      id: entry.id || entry.applicationId || entry._id || `${index}`,
+      name: fullName || "Candidate",
+      branch: student.branch || student.department || entry.branch || "--",
+      classYear: student.graduationYear ? `Class of ${student.graduationYear}` : student.classYear || "--",
+      appliedAt: entry.appliedAt || entry.applicationTime || entry.createdAt,
+      skillMatch: clampPercentage(entry.skillMatch ?? entry.matchScore ?? 0),
+      skills: normalizeSkills(entry.skills || student.skills),
+      status: (entry.status || entry.applicationStatus || "Submitted").trim(),
+    };
+  });
+};
+
+const formatDateTime = (value) => {
+  if (!value) return "--";
+  try {
+    return new Date(value).toLocaleString();
+  } catch (_err) {
+    return value;
+  }
+};
 
 export function JobApplicants() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const jobId = searchParams.get("jobId");
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedBranches, setSelectedBranches] = useState([]);
   const [selectedStatus, setSelectedStatus] = useState("");
   const [sortBy, setSortBy] = useState("relevance");
-  
-  const branches = ["Computer Science", "Information Technology"];
-  const statuses = ["Shortlisted", "Interviewing", "Submitted"];
 
-  const filteredApplicants = applicantsData.filter(applicant => {
-    const matchesSearch = applicant.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         applicant.skills.some(skill => skill.toLowerCase().includes(searchTerm.toLowerCase()));
-    const matchesBranch = selectedBranches.length === 0 || selectedBranches.includes(applicant.branch);
-    const matchesStatus = !selectedStatus || applicant.status === selectedStatus;
-    
-    return matchesSearch && matchesBranch && matchesStatus;
+  const {
+    data: applicantsPayload,
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery({
+    queryKey: ["job-applicants", jobId],
+    enabled: Boolean(jobId),
+    queryFn: () => apiClient.getJobApplicants(jobId),
   });
+
+  const { data: jobPayload } = useQuery({
+    queryKey: ["job-detail", jobId],
+    enabled: Boolean(jobId),
+    queryFn: () => apiClient.getJobById(jobId),
+  });
+
+  const applicants = useMemo(() => normalizeApplicants(applicantsPayload), [applicantsPayload]);
+
+  const jobMeta = useMemo(() => {
+    if (!jobPayload) return null;
+    const job = jobPayload.job || jobPayload.data || jobPayload;
+    if (!job) return null;
+    return {
+      title: job.title || job.jobTitle || job.roleTitle,
+      company: job.company?.name || job.companyName || job.organization,
+    };
+  }, [jobPayload]);
+
+  const branches = useMemo(() => {
+    return Array.from(new Set(applicants.map((applicant) => applicant.branch).filter(Boolean)));
+  }, [applicants]);
+
+  const statuses = useMemo(() => {
+    return Array.from(new Set(applicants.map((applicant) => applicant.status).filter(Boolean)));
+  }, [applicants]);
+
+  const filteredApplicants = useMemo(() => {
+    return applicants.filter((applicant) => {
+      const matchesSearch =
+        applicant.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        applicant.skills.some((skill) => skill.toLowerCase().includes(searchTerm.toLowerCase()));
+      const matchesBranch = selectedBranches.length === 0 || selectedBranches.includes(applicant.branch);
+      const matchesStatus = !selectedStatus || applicant.status === selectedStatus;
+      return matchesSearch && matchesBranch && matchesStatus;
+    });
+  }, [applicants, searchTerm, selectedBranches, selectedStatus]);
+
+  const sortedApplicants = useMemo(() => {
+    const list = [...filteredApplicants];
+    if (sortBy === "name") {
+      return list.sort((a, b) => a.name.localeCompare(b.name));
+    }
+    if (sortBy === "date") {
+      return list.sort((a, b) => new Date(b.appliedAt || 0) - new Date(a.appliedAt || 0));
+    }
+    return list.sort((a, b) => b.skillMatch - a.skillMatch);
+  }, [filteredApplicants, sortBy]);
 
   const addBranchFilter = (branch) => {
     if (!selectedBranches.includes(branch)) {
@@ -92,29 +162,79 @@ export function JobApplicants() {
     setSearchTerm("");
   };
 
+  const summary = useMemo(() => {
+    return statuses.map((status) => ({
+      label: status,
+      value: applicants.filter((applicant) => applicant.status === status).length,
+      helper: "Current count",
+    }));
+  }, [applicants, statuses]);
+
+  const headerDescription = jobMeta?.title
+    ? `${jobMeta.title}${jobMeta.company ? ` - ${jobMeta.company}` : ""}`
+    : "Select a job from postings to view applicants.";
+
+  const renderStatusBadge = (status) => {
+    const key = status?.toLowerCase().replace(/\s+/g, "_");
+    const theme = statusThemes[key] || "bg-muted text-foreground";
+    return <Badge className={`text-xs ${theme}`}>{status || "--"}</Badge>;
+  };
+
+  if (!jobId) {
+    return (
+      <Card>
+        <CardContent>
+          <DataState
+            state="empty"
+            message="Pick a job to review applicants"
+            description="Head to postings, open a role, and choose View Applicants."
+            action={
+              <Button size="sm" onClick={() => navigate("/alumni/postings")}>
+                Go to postings
+              </Button>
+            }
+          />
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-4">
-          <Button variant="ghost" size="sm" onClick={() => navigate('/alumni')}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back
-          </Button>
-          <div>
-            <h1 className="text-2xl font-bold">Job Applicants</h1>
-            <p className="text-muted-foreground">
-              Senior Software Engineer at TechCorp Inc. • Showing {filteredApplicants.length} of {applicantsData.length} applicants
-            </p>
-          </div>
+    <div className="space-y-8">
+      <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border bg-card p-5">
+        <div>
+          <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Applicants</p>
+          <p className="text-sm text-muted-foreground">{headerDescription}</p>
+          <p className="text-base text-muted-foreground">
+            Showing {sortedApplicants.length} of {applicants.length} candidates
+          </p>
         </div>
-        <Button variant="outline" onClick={clearAllFilters}>
-          <X className="h-4 w-4 mr-2" />
-          Clear All
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="ghost" size="sm" onClick={() => navigate("/alumni/postings")}> 
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to postings
+          </Button>
+          <Button variant="outline" size="sm" onClick={clearAllFilters}>
+            <X className="h-4 w-4 mr-2" />
+            Clear filters
+          </Button>
+        </div>
       </div>
 
-      {/* Filters */}
+      {summary.length > 0 && (
+        <div className="grid gap-4 md:grid-cols-3">
+          {summary.map((stat) => (
+            <Card key={stat.label}>
+              <CardContent className="p-4">
+                <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">{stat.label}</p>
+                <p className="text-3xl font-semibold tracking-tight">{stat.value}</p>
+                <p className="text-xs text-muted-foreground">{stat.helper}</p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
@@ -207,8 +327,11 @@ export function JobApplicants() {
         </CardContent>
       </Card>
 
-      {/* Applicants Table */}
       <Card>
+        <CardHeader>
+          <CardTitle>Applicants directory</CardTitle>
+          <p className="text-sm text-muted-foreground">Dive deeper into every candidate without leaving the shell.</p>
+        </CardHeader>
         <CardContent className="p-0">
           <Table>
             <TableHeader>
@@ -223,60 +346,100 @@ export function JobApplicants() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredApplicants.map((applicant) => (
-                <TableRow key={applicant.id}>
-                  <TableCell className="font-medium">
-                    <div className="flex items-center space-x-3">
-                      <Avatar className="h-8 w-8">
-                        <AvatarImage src={`/api/placeholder/32/32`} />
-                        <AvatarFallback>{applicant.name.charAt(0)}</AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <div className="font-medium">{applicant.name}</div>
-                        <div className="text-sm text-muted-foreground">{applicant.class}</div>
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell>{applicant.branch}</TableCell>
-                  <TableCell className="text-sm">{applicant.applicationTime}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center space-x-2">
-                      <Progress value={applicant.skillMatch} className="w-16" />
-                      <span className="text-sm font-medium">{applicant.skillMatch}%</span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-wrap gap-1">
-                      {applicant.skills.map((skill, index) => (
-                        <Badge key={index} variant="outline" className="text-xs">
-                          {skill}
-                        </Badge>
-                      ))}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge className={applicant.statusColor}>
-                      {applicant.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center space-x-2">
-                      <Button variant="ghost" size="sm">
-                        <Eye className="h-4 w-4" />
-                        <span className="ml-1 hidden sm:inline">View</span>
-                      </Button>
-                      <Button variant="ghost" size="sm">
-                        <Download className="h-4 w-4" />
-                        <span className="ml-1 hidden sm:inline">Resume</span>
-                      </Button>
-                      <Button variant="ghost" size="sm">
-                        <MessageSquare className="h-4 w-4" />
-                        <span className="ml-1 hidden sm:inline">Message</span>
-                      </Button>
-                    </div>
+              {isLoading && (
+                <TableRow>
+                  <TableCell colSpan={7}>
+                    <DataState state="loading" message="Loading applicants" />
                   </TableCell>
                 </TableRow>
-              ))}
+              )}
+              {isError && !isLoading && (
+                <TableRow>
+                  <TableCell colSpan={7}>
+                    <DataState
+                      state="error"
+                      message="Unable to load applicants"
+                      description="Retry in a few seconds."
+                      action={
+                        <Button size="sm" onClick={() => refetch()}>
+                          Retry
+                        </Button>
+                      }
+                    />
+                  </TableCell>
+                </TableRow>
+              )}
+              {!isLoading && !isError && sortedApplicants.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={7}>
+                    <DataState
+                      state="empty"
+                      message="No applicants match the selected filters"
+                      description="Broaden your branch or status filters to see more candidates."
+                      action={
+                        <Button variant="outline" size="sm" onClick={clearAllFilters}>
+                          Reset filters
+                        </Button>
+                      }
+                    />
+                  </TableCell>
+                </TableRow>
+              )}
+              {!isLoading && !isError &&
+                sortedApplicants.map((applicant) => (
+                  <TableRow key={applicant.id}>
+                    <TableCell className="font-medium">
+                      <div className="flex items-center space-x-3">
+                        <Avatar className="h-8 w-8">
+                          <AvatarImage src={`/api/placeholder/32/32`} />
+                          <AvatarFallback>{applicant.name.charAt(0)}</AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <div className="font-medium">{applicant.name}</div>
+                          <div className="text-sm text-muted-foreground">{applicant.classYear}</div>
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell>{applicant.branch}</TableCell>
+                    <TableCell className="text-sm">{formatDateTime(applicant.appliedAt)}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center space-x-2">
+                        <Progress value={applicant.skillMatch} className="w-16" />
+                        <span className="text-sm font-medium">{applicant.skillMatch}%</span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1">
+                        {applicant.skills.length === 0 ? (
+                          <span className="text-xs text-muted-foreground">Skills pending</span>
+                        ) : (
+                          applicant.skills.map((skill, index) => (
+                            <Badge key={`${applicant.id}-${skill}-${index}`} variant="outline" className="text-xs">
+                              {skill}
+                            </Badge>
+                          ))
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>{renderStatusBadge(applicant.status)}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center space-x-2">
+                        <Button variant="ghost" size="sm">
+                          <Eye className="h-4 w-4" />
+                          <span className="ml-1 hidden sm:inline">Profile</span>
+                        </Button>
+                        <Button variant="ghost" size="sm">
+                          <Download className="h-4 w-4" />
+                          <span className="ml-1 hidden sm:inline">Resume</span>
+                        </Button>
+                        <Button variant="ghost" size="sm">
+                          <MessageSquare className="h-4 w-4" />
+                          <span className="ml-1 hidden sm:inline">Message</span>
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
             </TableBody>
           </Table>
         </CardContent>

@@ -2,6 +2,15 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Font definitions */
+@font-face {
+  font-family: 'The Neue Black';
+  src: url('/fonts/TheNeue-Black.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
 /* Alumni Portal Design System - Professional Blue Theme */
 
 @layer base {
@@ -66,49 +75,6 @@
     --shadow-glow: 0 0 0 1px hsl(var(--primary) / 0.05), 0 1px 2px 0 hsl(var(--primary) / 0.1);
   }
 
-  .dark {
-    --background: 215 28% 9%;
-    --foreground: 214 32% 91%;
-
-    --card: 215 28% 9%;
-    --card-foreground: 214 32% 91%;
-
-    --popover: 215 28% 9%;
-    --popover-foreground: 214 32% 91%;
-
-    --primary: 221 83% 53%;
-    --primary-foreground: 0 0% 100%;
-    --primary-glow: 221 83% 65%;
-
-    --secondary: 215 28% 17%;
-    --secondary-foreground: 214 32% 91%;
-
-    --muted: 215 28% 17%;
-    --muted-foreground: 215 20% 65%;
-
-    --accent: 215 28% 17%;
-    --accent-foreground: 214 32% 91%;
-
-    --success: 142 76% 36%;
-    --warning: 38 92% 50%;
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 0 0% 100%;
-
-    --border: 215 28% 17%;
-    --input: 215 28% 17%;
-    --ring: 221 83% 53%;
-
-    /* Dark mode sidebar (same dark blue) */
-    --sidebar-background: 221 44% 15%;
-    --sidebar-foreground: 214 32% 85%;
-    --sidebar-primary: 221 83% 53%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 221 33% 16%;
-    --sidebar-accent-foreground: 214 32% 85%;
-    --sidebar-border: 221 33% 16%;
-    --sidebar-ring: 221 83% 53%;
-  }
-
   .alumni-theme,
   .admin-theme {
     --sidebar-background: 221 44% 15% !important; /* Unified dark blue for all */
@@ -129,6 +95,10 @@
 
   body {
     @apply bg-background text-foreground font-sans antialiased;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-heading;
   }
 
   /* Custom scrollbar */

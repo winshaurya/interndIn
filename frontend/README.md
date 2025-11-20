@@ -1,53 +1,28 @@
-# Welcome to your Lovable project
+# interndIn Frontend
 
-## Project info
+A React-based frontend for the interndIn platform, connecting SGSITS students with alumni opportunities.
 
-**URL**: https://lovable.dev/projects/dc5589d4-880f-4ce9-a982-45d8cc895804
+## Features
 
-## How can I edit this code?
+- Student and Alumni dashboards
+- Job postings and applications
+- Messaging system
+- Profile management
+- Google OAuth integration
 
-There are several ways of editing your application.
-
-**Use Lovable**
-
-Simply visit the [Lovable Project](https://lovable.dev/projects/dc5589d4-880f-4ce9-a982-45d8cc895804) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
+## Getting Started
 
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+npm install
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+## Tech Stack
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
-
-**Use GitHub Codespaces**
-
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
+- React + Vite
+- Tailwind CSS + shadcn/ui
+- React Router
+- Axios for API calls
 - Edit files directly within the Codespace and commit and push your changes once you're done.
 
 ## What technologies are used for this project?

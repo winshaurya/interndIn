@@ -30,6 +30,7 @@ import {
   Target,
   Activity
 } from "lucide-react";
+import { useShellHeader } from "@/hooks/useShellHeader";
 
 // Mock data for analytics
 const registrationData = [
@@ -91,6 +92,10 @@ const recentActivities = [
 ];
 
 export default function Analytics() {
+  useShellHeader({
+    title: "Analytics",
+    description: "Monitor acquisition, engagement, and hiring funnels across the platform.",
+  });
   const exportAnalytics = () => {
     const csvContent = [
       ["Metric", "Value", "Period"],
@@ -113,14 +118,11 @@ export default function Analytics() {
   };
 
   return (
-    <div className="p-8 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border bg-card p-4">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Analytics Dashboard</h1>
-          <p className="text-muted-foreground">
-            Monitor platform performance and user engagement
-          </p>
+          <p className="text-sm uppercase tracking-[0.2em] text-muted-foreground">Reporting window</p>
+          <p className="text-sm text-muted-foreground">Switch time ranges or export the current slice.</p>
         </div>
         <div className="flex items-center gap-4">
           <Select defaultValue="30days">
