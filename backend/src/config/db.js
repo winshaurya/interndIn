@@ -59,6 +59,9 @@ const createAnonClient = () =>
 const adminClient = createAdminClient();
 const anonClient = createAnonClient();
 
+// indicate whether a service role key is available (useful guards elsewhere)
+const hasServiceRoleKey = Boolean(serviceRoleKey);
+
 const enhanceError = (error, context) => {
   if (!error) return error;
   const enhanced = new Error(error.message || "Supabase operation failed");
@@ -123,6 +126,9 @@ const db = {
   withServiceRole: async (handler) => handler(adminClient),
   withRlsSession: (accessToken, handler) =>
     withClient(() => createSessionClient(accessToken), handler),
+
+  // Expose helper flag so other modules can check availability
+  hasServiceRoleKey,
 
   ensureSuccess: async (promise, context) => {
     const { data, error, ...rest } = await promise;

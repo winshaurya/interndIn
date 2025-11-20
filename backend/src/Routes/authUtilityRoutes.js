@@ -6,8 +6,6 @@ const {
 } = require("../controllers/AuthUtilityController");
 const { authenticate } = require("../middleware/authMiddleware");
 
-console.log(typeof authenticate + "aaaaaaaaaaaaaaaaa");
-
 // public
 router.post("/forgot-password", forgotPassword);
 

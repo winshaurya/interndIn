@@ -1,6 +1,6 @@
 const db = require("../config/db.js");
 const bcrypt = require("bcrypt");
-const nodemailer = require("nodemailer");
+const { sendEmail } = require("../services/emailService");
 const {
   ensureAppUserRecord,
   fetchAppUserProfile,
@@ -52,7 +52,6 @@ const buildSessionPayload = (session, supabaseUser, appUser) => ({
 // ==================== REGISTER STUDENT ====================
 const registerStudent = async (req, res) => {
   try {
-    console.log("Register student request body:", req.body);
     const {
       name,
       email,
@@ -169,7 +168,6 @@ const registerStudent = async (req, res) => {
 // // ==================== LOGIN ====================
 const login = async (req, res) => {
   try {
-    console.log("Login request received:", req.body);
     const { email, password } = req.body;
     const normalizedEmail = normalizeEmail(email);
     const publicClient = requirePublicClient();
@@ -359,28 +357,7 @@ const generateOTP = () => {
   return Math.floor(100000 + Math.random() * 900000).toString(); // always 6 digits
 };
 
-// ==================== EMAIL SENDER ====================
-// Temporarily disabled - just logs email content
-const sendEmail = async (to, subject, text) => {
-  console.log(`📧 EMAIL DISABLED - Would send to: ${to}`);
-  console.log(`Subject: ${subject}`);
-  console.log(`Body: ${text}`);
-  console.log('---');
-  // Original code commented out:
-  // const transporter = nodemailer.createTransport({
-  //   service: "Gmail",
-  //   auth: {
-  //     user: process.env.EMAIL_USER,
-  //     pass: process.env.EMAIL_PASS,
-  //   },
-  // });
-  // await transporter.sendMail({
-  //   from: process.env.EMAIL_USER,
-  //   to,
-  //   subject,
-  //   text,
-  // });
-};
+// Email sending delegated to `services/emailService` (no-op when not configured)
 
 // ==================== FORGOT PASSWORD: GENERATE OTP ====================
 const forgotPasswordGenerateOtp = async (req, res) => {
@@ -404,8 +381,6 @@ const forgotPasswordGenerateOtp = async (req, res) => {
     const otp = generateOTP(); // a 6-digit string
     const expiryTime = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
-    console.log(otp + "????????LLLLL");
-
     // Delete existing OTP
     await db.from('otp_verifications').delete().eq('email', user.email);
 
@@ -422,8 +397,6 @@ const forgotPasswordGenerateOtp = async (req, res) => {
       console.error('OTP insert error:', otpError);
       return res.status(500).json({ error: 'Failed to generate OTP' });
     }
-
-    console.log(user.email + "????????LLLLL");
 
     try {
       await sendEmail(email, "Password Reset OTP", `Your OTP is: ${otp}`);
@@ -525,7 +498,7 @@ const generateEmailVerificationOTP = async (req, res) => {
     const otp = generateOTP();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
-    console.log(otp + "????????LLLLL");
+    // OTP generated (not logged in production)
 
     const { error: otpError } = await db
       .from('otp_verifications')

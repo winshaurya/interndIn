@@ -2,7 +2,7 @@
 const express = require('express');
 const router = express.Router();
 const applicationController = require('../controllers/JobApplicationController');
-const authenticate = require('../middleware/authMiddleware');
+const { authenticate } = require('../middleware/authMiddleware');
 const authorizeRole = require('../middleware/roleMiddleware');
 
 // Student withdraw their job application
