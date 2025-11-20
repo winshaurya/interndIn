@@ -12,7 +12,7 @@ exports.postJob = async (req, res) => {
     // 1) Alumni profile by user
     const { data: profile, error: profileError } = await db
       .from('alumni_profiles')
-      .select('id, grad_year, current_title')
+      .select('id, name, grad_year, current_title')
       .eq('user_id', userId)
       .maybeSingle();
 
@@ -39,10 +39,33 @@ exports.postJob = async (req, res) => {
       return res.status(500).json({ error: "Failed to fetch company" });
     }
 
+    // If company info is missing, create a placeholder company record so alumni can post jobs
     if (!company) {
-      return res.status(400).json({
-        error: "Company info not found. Submit your company details first.",
-      });
+      try {
+        const placeholder = {
+          alumni_id: profile.id,
+          name: profile.name || 'My Company',
+          website: null,
+          about: null,
+          status: 'pending',
+          created_at: new Date().toISOString(),
+        };
+        const { data: insertedCompany, error: insertCompanyErr } = await db
+          .from('companies')
+          .insert(placeholder)
+          .select('id, alumni_id, name')
+          .maybeSingle();
+
+        if (insertCompanyErr) {
+          console.error('Placeholder company insert error:', insertCompanyErr);
+          return res.status(500).json({ error: 'Failed to create company record' });
+        }
+
+        company = insertedCompany;
+      } catch (e) {
+        console.error('Auto-create company error:', e);
+        return res.status(500).json({ error: 'Failed to ensure company record' });
+      }
     }
 
     // 3) Completion score

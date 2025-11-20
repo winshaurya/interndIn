@@ -9,17 +9,26 @@ const authenticate = async (req, res, next) => {
   }
 
   try {
-    const { data, error } = await db.supabase.auth.getUser(token);
+    // Create a session-scoped Supabase client using the provided access token
+    const sessionClient = db.getSessionClient(token);
+    if (!sessionClient) {
+      return res.status(401).json({ error: "Invalid Supabase session" });
+    }
+
+    const { data, error } = await sessionClient.auth.getUser();
     if (error || !data?.user) {
       return res.status(401).json({ error: "Invalid Supabase session" });
     }
 
-    const appUser = await ensureAppUserRecord(data.user);
+    const supabaseUser = data.user;
+    const appUser = await ensureAppUserRecord(supabaseUser);
+
     req.user = {
       ...appUser,
-      id: data.user.id,
-      email: data.user.email,
-      supabaseUser: data.user,
+      id: supabaseUser.id,
+      userId: supabaseUser.id,
+      email: supabaseUser.email,
+      supabaseUser,
       accessToken: token,
     };
 

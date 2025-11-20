@@ -46,3 +46,7 @@ Yes, you can!
 To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
 
 Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+
+## Vercel / Production note
+
+- This app is a SPA. When deployed on Vercel make sure the rewrites file `vercel.json` is present in the `frontend` folder. It routes all non-API requests to `index.html` so refreshing client-side routes doesn't return 404.

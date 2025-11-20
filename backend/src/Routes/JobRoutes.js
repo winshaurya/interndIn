@@ -1,6 +1,8 @@
 const express = require("express");
 const router = express.Router();
-const {authenticate } = require("../middleware/authMiddleware");
+const { authenticate } = require("../middleware/authMiddleware");
+const validate = require('../middleware/validationMiddleware');
+const { postJobSchema, updateJobSchema } = require('../validation/jobSchemas');
 // const { authorize } = require("../middleware/roleMiddleware");
 const {
   postJob,
@@ -19,11 +21,11 @@ const {
 // Alumni can post jobs
 // router.post("/", protect, authorize("alumni"), postJob);
 
-router.post("/post-job", authenticate, postJob);
-router.get("/get-my-jobs",authenticate, getMyJobs);
-router.get("/get-job-by-id/:id",authenticate, getJobById);
-router.put("/update-job/:id",authenticate,updateJob);
-router.delete("/delete-job/:id",authenticate,deleteJob);
+router.post("/post-job", authenticate, validate({ body: postJobSchema }), postJob);
+router.get("/get-my-jobs", authenticate, getMyJobs);
+router.get("/get-job-by-id/:id", authenticate, getJobById);
+router.put("/update-job/:id", authenticate, validate({ body: updateJobSchema }), updateJob);
+router.delete("/delete-job/:id", authenticate, deleteJob);
 
 
 router.get("/get-all-jobs-student",getAllJobsStudent);
