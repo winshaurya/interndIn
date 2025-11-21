@@ -110,6 +110,13 @@ export const AuthProvider = ({ children }) => {
     return resp;
   };
 
+  const syncUserFromSession = (sessionUser) => {
+    if (!sessionUser) return;
+    const merged = { ...sessionUser };
+    setUser(merged);
+    saveStoredUser(merged);
+  };
+
   const signup = async (userData) => {
     return apiClient.signup(userData);
   };
@@ -140,6 +147,7 @@ export const AuthProvider = ({ children }) => {
     role: user?.role || null,
     isAuthenticated,
     login,
+    syncUserFromSession,
     signup,
     logout,
     resetPassword,

@@ -226,33 +226,27 @@ const login = async (req, res) => {
 
     await updateLastLogin(supabaseUser.id);
 
-    // Set httpOnly cookies for access and refresh tokens to support cookie-based sessions
+    // Set httpOnly cookie for refresh token only. Return access token in JSON.
     try {
-      const maxAge = (session.expires_at && Number(session.expires_at) - Math.floor(Date.now()/1000)) > 0
-        ? (Number(session.expires_at) - Math.floor(Date.now()/1000)) * 1000
-        : undefined;
-
-      res.cookie('accessToken', session.access_token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        maxAge: maxAge,
-      });
-
       if (session.refresh_token) {
-        // set refresh token with longer expiry (30 days fallback)
         res.cookie('refreshToken', session.refresh_token, {
           httpOnly: true,
           secure: process.env.NODE_ENV === 'production',
           sameSite: 'lax',
+          path: '/',
+          // 30 days
           maxAge: 1000 * 60 * 60 * 24 * 30,
         });
       }
     } catch (cookieErr) {
-      console.warn('Failed to set auth cookies:', cookieErr);
+      console.warn('Failed to set refresh cookie:', cookieErr);
     }
 
-    res.json(buildSessionPayload(session, supabaseUser, appUser));
+    // Return session payload (access token included) but do NOT expose refreshToken
+    const payload = buildSessionPayload(session, supabaseUser, appUser);
+    // remove refreshToken from response payload to avoid exposing it
+    if (payload.refreshToken) delete payload.refreshToken;
+    res.json(payload);
   } catch (error) {
     console.error("Login error:", error);
     res.status(500).json({ error: "Failed to login" });
@@ -260,9 +254,16 @@ const login = async (req, res) => {
 };
 
 const refreshSession = async (req, res) => {
-  const { refreshToken } = req.body || {};
+  // Prefer refresh token from httpOnly cookie, fall back to request body
+  let refreshToken = null;
+  if (req.cookies && req.cookies.refreshToken) {
+    refreshToken = req.cookies.refreshToken;
+  } else if (req.body && req.body.refreshToken) {
+    refreshToken = req.body.refreshToken;
+  }
+
   if (!refreshToken) {
-    return res.status(400).json({ error: "refreshToken is required" });
+    return res.status(400).json({ error: "refreshToken is required (provide via httpOnly cookie)" });
   }
 
   try {
@@ -296,31 +297,24 @@ const refreshSession = async (req, res) => {
 
     await updateLastLogin(supabaseUser.id);
 
+    // rotate refresh cookie if a new refresh token returned
     try {
-      const maxAge = (session.expires_at && Number(session.expires_at) - Math.floor(Date.now()/1000)) > 0
-        ? (Number(session.expires_at) - Math.floor(Date.now()/1000)) * 1000
-        : undefined;
-
-      res.cookie('accessToken', session.access_token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        maxAge: maxAge,
-      });
-
       if (session.refresh_token) {
         res.cookie('refreshToken', session.refresh_token, {
           httpOnly: true,
           secure: process.env.NODE_ENV === 'production',
           sameSite: 'lax',
+          path: '/',
           maxAge: 1000 * 60 * 60 * 24 * 30,
         });
       }
     } catch (cookieErr) {
-      console.warn('Failed to set auth cookies during refresh:', cookieErr);
+      console.warn('Failed to set refresh cookie during refresh:', cookieErr);
     }
 
-    res.json(buildSessionPayload(session, supabaseUser, appUser));
+    const payload = buildSessionPayload(session, supabaseUser, appUser);
+    if (payload.refreshToken) delete payload.refreshToken;
+    res.json(payload);
   } catch (error) {
     console.error("Refresh session error:", error);
     res.status(500).json({ error: "Unable to refresh session" });
@@ -642,19 +636,26 @@ const verifyEmailWithOTP = async (req, res) => {
 // ================== Logout ==================
 const logout = async (req, res) => {
   try {
-    const refreshToken = req.body?.refreshToken;
+    // Prefer refresh token from cookie; allow optional body param (legacy)
+    const refreshToken = (req.cookies && req.cookies.refreshToken) || req.body?.refreshToken;
 
     if (refreshToken) {
-      const { error } = await db.supabase.auth.admin.signOut(refreshToken);
-      if (error) {
-        console.warn("Supabase admin signOut failed", error);
+      try {
+        const { error } = await db.supabase.auth.admin.signOut(refreshToken);
+        if (error) console.warn("Supabase admin signOut failed", error);
+      } catch (e) {
+        console.warn('Error calling Supabase signOut during logout', e);
       }
     }
 
-    res.status(200).json({
-      success: true,
-      message: "Logout successful.",
-    });
+    // Clear refresh cookie
+    try {
+      res.clearCookie('refreshToken', { path: '/' });
+    } catch (e) {
+      console.warn('Failed to clear refresh cookie', e);
+    }
+
+    res.status(200).json({ success: true, message: "Logout successful." });
   } catch (error) {
     console.error("Logout error:", error);
     res.status(500).json({ error: "Server error during logout" });

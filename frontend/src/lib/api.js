@@ -65,7 +65,6 @@ const STATIC_LOCATIONS = [
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const ACCESS_TOKEN_KEY = "token";
-const REFRESH_TOKEN_KEY = "refreshToken";
 const TOKEN_EXP_KEY = "tokenExpiresAt";
 const USER_KEY = "user";
 
@@ -83,9 +82,6 @@ class ApiClient {
     if (accessToken) {
       localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
     }
-    if (payload.refreshToken) {
-      localStorage.setItem(REFRESH_TOKEN_KEY, payload.refreshToken);
-    }
     if (payload.expiresAt) {
       localStorage.setItem(TOKEN_EXP_KEY, String(payload.expiresAt));
     }
@@ -97,7 +93,6 @@ class ApiClient {
   clearSession() {
     if (typeof window === "undefined") return;
     localStorage.removeItem(ACCESS_TOKEN_KEY);
-    localStorage.removeItem(REFRESH_TOKEN_KEY);
     localStorage.removeItem(TOKEN_EXP_KEY);
     localStorage.removeItem(USER_KEY);
   }
@@ -241,28 +236,27 @@ class ApiClient {
   }
 
   async logout() {
-    const refreshToken = typeof window !== "undefined"
-      ? localStorage.getItem(REFRESH_TOKEN_KEY)
-      : null;
     try {
+      // Server clears refresh cookie; no need to send refresh token from client
       await this.request("/auth/logout", {
         method: "POST",
-        body: refreshToken ? JSON.stringify({ refreshToken }) : undefined,
         skipAuthRefresh: true,
       });
     } catch (e) {
-      // Ignore network logout failure; client side will still clear
       console.warn("Logout API failed", e.message);
     } finally {
       this.clearSession();
     }
   }
 
-  async refreshSession(refreshToken) {
-    if (!refreshToken) return null;
+  async refreshSession(maybeRefreshToken) {
+    // If a refresh token is provided (OAuth callback), include it in the body so
+    // the server can sign in and set the httpOnly cookie. Otherwise rely on
+    // the httpOnly cookie being present and make an empty POST to /auth/refresh.
+    const body = maybeRefreshToken ? JSON.stringify({ refreshToken: maybeRefreshToken }) : undefined;
     const response = await this.request("/auth/refresh", {
       method: "POST",
-      body: JSON.stringify({ refreshToken }),
+      body,
       skipAuthRefresh: true,
       skipRetry: true,
     });
@@ -273,11 +267,8 @@ class ApiClient {
   async ensureFreshToken() {
     if (typeof window === "undefined") return null;
     const expiresAt = Number(localStorage.getItem(TOKEN_EXP_KEY));
-    const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
 
-    if (!expiresAt || !refreshToken) {
-      return null;
-    }
+    if (!expiresAt) return null;
 
     const secondsRemaining = expiresAt - Math.floor(Date.now() / 1000);
     if (secondsRemaining > 60) {
@@ -285,7 +276,7 @@ class ApiClient {
     }
 
     if (!this.refreshPromise) {
-      this.refreshPromise = this.refreshSession(refreshToken).finally(() => {
+      this.refreshPromise = this.refreshSession().finally(() => {
         this.refreshPromise = null;
       });
     }
