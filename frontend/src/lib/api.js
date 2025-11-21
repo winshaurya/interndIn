@@ -140,6 +140,8 @@ class ApiClient {
         ...headers,
       },
       body,
+      // send credentials so server-set httpOnly cookies are included
+      credentials: 'include',
     };
 
     // Only set Content-Type for non-FormData requests
@@ -162,10 +164,10 @@ class ApiClient {
       const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
       try {
-        const response = await fetch(url, {
-          ...config,
-          signal: controller.signal,
-        });
+            const response = await fetch(url, {
+              ...config,
+              signal: controller.signal,
+            });
         clearTimeout(timeout);
 
         // Attempt to parse JSON; handle empty body
@@ -293,14 +295,80 @@ class ApiClient {
 
   // ================= Student endpoints =================
   async getStudentProfile() {
-    return this.request("/student/profile");
+    const res = await this.request("/student/profile");
+    // normalize profile keys to camelCase for frontend
+    try {
+      const profile = res?.data?.profile;
+      if (profile) {
+        const normalized = {
+          ...profile,
+          studentId: profile.student_id ?? profile.studentId,
+          dateOfBirth: profile.date_of_birth ?? profile.dateOfBirth,
+          gradYear: profile.grad_year ?? profile.gradYear,
+          resumeUrl: profile.resume_url ?? profile.resumeUrl,
+          desiredRoles: profile.desired_roles ?? profile.desiredRoles,
+          preferredLocations: profile.preferred_locations ?? profile.preferredLocations,
+          currentYear: profile.current_year ?? profile.currentYear,
+          workMode: profile.work_mode ?? profile.workMode,
+          profilePictureUrl: profile.profile_picture_url ?? profile.profilePictureUrl,
+          skills: Array.isArray(profile.skills) ? profile.skills : (profile.skills ? String(profile.skills).split(',').map(s=>s.trim()) : []),
+        };
+        return { ...res, data: { ...res.data, profile: normalized } };
+      }
+    } catch (e) {
+      // ignore normalization errors
+    }
+    return res;
   }
 
   async updateStudentProfile(profileData) {
-    return this.request("/student/profile", {
+    // Map frontend camelCase keys to backend snake_case expectations
+    const payload = {
+      ...(profileData.name ? { name: profileData.name } : {}),
+      ...(profileData.email ? { email: profileData.email } : {}),
+      ...(profileData.phone ? { phone: profileData.phone } : {}),
+      ...(profileData.studentId ? { student_id: profileData.studentId } : {}),
+      ...(profileData.branch ? { branch: profileData.branch } : {}),
+      ...(profileData.currentYear ? { current_year: profileData.currentYear } : {}),
+      ...(profileData.gradYear ? { grad_year: profileData.gradYear } : {}),
+      ...(profileData.dateOfBirth ? { date_of_birth: profileData.dateOfBirth } : {}),
+      ...(profileData.skills ? { skills: profileData.skills } : {}),
+      ...(profileData.resumeUrl ? { resume_url: profileData.resumeUrl } : {}),
+      ...(profileData.cgpa ? { cgpa: profileData.cgpa } : {}),
+      ...(profileData.achievements ? { achievements: profileData.achievements } : {}),
+      ...(profileData.experiences ? { experiences: profileData.experiences } : {}),
+      ...(profileData.desiredRoles ? { desired_roles: profileData.desiredRoles } : {}),
+      ...(profileData.preferredLocations ? { preferred_locations: profileData.preferredLocations } : {}),
+      ...(profileData.workMode ? { work_mode: profileData.workMode } : {}),
+    };
+
+    const res = await this.request("/student/profile", {
       method: "PUT",
-      body: JSON.stringify(profileData),
+      body: JSON.stringify(payload),
     });
+
+    // normalize and return similar to getStudentProfile
+    try {
+      const profile = res?.data?.profile;
+      if (profile) {
+        const normalized = {
+          ...profile,
+          studentId: profile.student_id ?? profile.studentId,
+          dateOfBirth: profile.date_of_birth ?? profile.dateOfBirth,
+          gradYear: profile.grad_year ?? profile.gradYear,
+          resumeUrl: profile.resume_url ?? profile.resumeUrl,
+          desiredRoles: profile.desired_roles ?? profile.desiredRoles,
+          preferredLocations: profile.preferred_locations ?? profile.preferredLocations,
+          currentYear: profile.current_year ?? profile.currentYear,
+          workMode: profile.work_mode ?? profile.workMode,
+          profilePictureUrl: profile.profile_picture_url ?? profile.profilePictureUrl,
+          skills: Array.isArray(profile.skills) ? profile.skills : (profile.skills ? String(profile.skills).split(',').map(s=>s.trim()) : []),
+        };
+        return { ...res, data: { ...res.data, profile: normalized } };
+      }
+    } catch (e) {}
+
+    return res;
   }
 
   // ================= Job endpoints =================

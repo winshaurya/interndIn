@@ -165,6 +165,30 @@ const registerStudent = async (req, res) => {
   }
 };
 
+// ==================== GET CURRENT SESSION / ME ====================
+const getSession = async (req, res) => {
+  try {
+    const user = req.user;
+    if (!user) return res.status(401).json({ error: 'Not authenticated' });
+
+    // user already hydrated in auth middleware; include profile if available
+    const userId = user.id;
+    let profile = null;
+    if (user.role === 'student') {
+      const { data } = await db.from('student_profiles').select('*').eq('user_id', userId).maybeSingle();
+      profile = data || null;
+    } else if (user.role === 'alumni') {
+      const { data } = await db.from('alumni_profiles').select('*').eq('user_id', userId).maybeSingle();
+      profile = data || null;
+    }
+
+    return res.json({ success: true, data: { user: buildUserResponse(user.supabaseUser, user), profile } });
+  } catch (err) {
+    console.error('Get session error:', err);
+    return res.status(500).json({ error: 'Failed to fetch session' });
+  }
+};
+
 // // ==================== LOGIN ====================
 const login = async (req, res) => {
   try {
@@ -201,6 +225,32 @@ const login = async (req, res) => {
     }
 
     await updateLastLogin(supabaseUser.id);
+
+    // Set httpOnly cookies for access and refresh tokens to support cookie-based sessions
+    try {
+      const maxAge = (session.expires_at && Number(session.expires_at) - Math.floor(Date.now()/1000)) > 0
+        ? (Number(session.expires_at) - Math.floor(Date.now()/1000)) * 1000
+        : undefined;
+
+      res.cookie('accessToken', session.access_token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: maxAge,
+      });
+
+      if (session.refresh_token) {
+        // set refresh token with longer expiry (30 days fallback)
+        res.cookie('refreshToken', session.refresh_token, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax',
+          maxAge: 1000 * 60 * 60 * 24 * 30,
+        });
+      }
+    } catch (cookieErr) {
+      console.warn('Failed to set auth cookies:', cookieErr);
+    }
 
     res.json(buildSessionPayload(session, supabaseUser, appUser));
   } catch (error) {
@@ -245,6 +295,30 @@ const refreshSession = async (req, res) => {
     }
 
     await updateLastLogin(supabaseUser.id);
+
+    try {
+      const maxAge = (session.expires_at && Number(session.expires_at) - Math.floor(Date.now()/1000)) > 0
+        ? (Number(session.expires_at) - Math.floor(Date.now()/1000)) * 1000
+        : undefined;
+
+      res.cookie('accessToken', session.access_token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: maxAge,
+      });
+
+      if (session.refresh_token) {
+        res.cookie('refreshToken', session.refresh_token, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax',
+          maxAge: 1000 * 60 * 60 * 24 * 30,
+        });
+      }
+    } catch (cookieErr) {
+      console.warn('Failed to set auth cookies during refresh:', cookieErr);
+    }
 
     res.json(buildSessionPayload(session, supabaseUser, appUser));
   } catch (error) {

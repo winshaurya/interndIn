@@ -114,7 +114,7 @@ export function EditCompanyProfile() {
 
   const handleSave = () => {
     // Here you would save the data to your backend
-    console.log("Saving company profile:", { formData, locations });
+    // saving company profile
     navigate("/alumni/company-profile");
   };
 

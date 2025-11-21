@@ -15,7 +15,6 @@ import ProfileCompletionMeter from "@/components/profile/ProfileCompletionMeter"
 import ProfileEditor from "@/components/profile/ProfileEditor";
 import { 
   User, 
-  GraduationCap, 
   Code, 
   Briefcase, 
   FileText, 
@@ -27,6 +26,7 @@ import {
   Star,
   Loader2
 } from "lucide-react";
+import GraduationCap from '@/components/icons/GraduationCap';
 
 const StudentProfile = () => {
   const { toast } = useToast();
@@ -174,11 +174,11 @@ const StudentProfile = () => {
 
   const profileSections = [
     { id: "personal", completed: !!(profile?.name && profile?.email && profile?.phone), weight: 20 },
-    { id: "academic", completed: !!(profile?.branch && profile?.currentYear), weight: 20 },
-    { id: "skills", completed: profile?.skills?.length >= 1, weight: 20 },
-    { id: "experience", completed: profile?.experiences?.length >= 1, weight: 20 },
-    { id: "resume", completed: profile?.resumeUploaded, weight: 10 },
-    { id: "preferences", completed: profile?.desiredRoles?.length > 0, weight: 10 },
+    { id: "academic", completed: !!(profile?.branch && (profile?.currentYear || profile?.current_year)), weight: 20 },
+    { id: "skills", completed: (profile?.skills?.length || profile?.skills?.length === 0) ? (profile.skills.length >= 1) : false, weight: 20 },
+    { id: "experience", completed: (profile?.experiences?.length || 0) >= 1, weight: 20 },
+    { id: "resume", completed: !!(profile?.resumeUrl || profile?.resume_url), weight: 10 },
+    { id: "preferences", completed: (profile?.desiredRoles?.length || profile?.desired_roles?.length || 0) > 0, weight: 10 },
   ];
 
   const completionPercentage = profileSections.reduce(

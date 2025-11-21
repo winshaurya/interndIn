@@ -65,7 +65,7 @@ export function AddCompanyForm() {
     setIsSubmitting(true);
     try {
       // TODO: Integrate with backend API
-      console.log("Company data:", data);
+      // debug: company created
       // Simulate API call
       await new Promise(resolve => setTimeout(resolve, 1000));
       navigate("/alumni");

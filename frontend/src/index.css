@@ -16,7 +16,7 @@
 @layer base {
   :root {
     --background: 0 0% 100%;
-    --foreground: 215 27% 17%;
+    --foreground: 215 20% 10%; /* darker for better contrast */
 
     --card: 0 0% 100%;
     --card-foreground: 215 27% 17%;
@@ -43,7 +43,7 @@
     --secondary-foreground: 215 27% 17%;
 
     --muted: 210 40% 96%;
-    --muted-foreground: 215 20% 65%;
+    --muted-foreground: 215 20% 35%; /* stronger muted text for contrast */
 
     --accent: 214 32% 96%;
     --accent-foreground: 215 27% 17%;
@@ -95,6 +95,8 @@
 
   body {
     @apply bg-background text-foreground font-sans antialiased;
+    padding-left: 1rem;
+    padding-right: 1rem;
   }
 
   h1, h2, h3, h4, h5, h6 {

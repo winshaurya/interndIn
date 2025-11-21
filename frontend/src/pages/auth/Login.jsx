@@ -5,7 +5,8 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { Eye, EyeOff, GraduationCap, ArrowRight } from "lucide-react";
+import { Eye, EyeOff, ArrowRight } from "lucide-react";
+import GraduationCap from '@/components/icons/GraduationCap';
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { apiClient } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
@@ -30,14 +31,10 @@ const Login = () => {
     setIsLoading(true);
 
     try {
-      console.log('Attempting login with:', { email: formData.email });
       const response = await login({
         email: formData.email,
         password: formData.password,
       });
-      console.log('Login response:', response);
-
-      console.log('User role:', response.user.role);
 
       const pendingPath = location.state?.from;
       const fallbackRoute = getRoleHome(response.user.role) || "/";

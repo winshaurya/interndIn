@@ -13,7 +13,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { useToast } from "@/hooks/use-toast";
 import { 
   User, 
-  GraduationCap, 
   Code, 
   Briefcase, 
   FileText, 
@@ -30,6 +29,7 @@ import {
   Save,
   Eye
 } from "lucide-react";
+import GraduationCap from '@/components/icons/GraduationCap';
 
 const ProfileEditor = ({ profileData, setProfileData, onSave }) => {
   const { toast } = useToast();

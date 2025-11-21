@@ -4,7 +4,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, Building } from "lucide-react";
+import GraduationCap from '@/components/icons/GraduationCap';
 import { Link, useNavigate } from "react-router-dom";
 import { apiClient } from "@/lib/api";
 
@@ -48,7 +49,7 @@ const SignUp = () => {
     }
 
     try {
-      console.log('Form data:', formData);
+      // form submission
       const response = await apiClient.request('/auth/register', {
         method: 'POST',
         body: JSON.stringify({

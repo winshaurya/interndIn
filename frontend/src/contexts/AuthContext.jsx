@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { apiClient } from "@/lib/api";
+import { loadUser as loadStoredUser, saveUser as saveStoredUser, clearUser as clearStoredUser } from '@/lib/state';
 import { getRoleHome } from "@/lib/auth";
 
 const AuthContext = createContext();
@@ -19,30 +21,42 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     // Get initial session
     const getInitialSession = async () => {
-      const { data: { session }, error } = await supabase.auth.getSession();
-
-      if (error) {
-        console.error('Error getting session:', error);
-      } else if (session?.user) {
-        // Fetch additional user data from users table
-        const { data: userData, error: userError } = await supabase
-          .from('users')
-          .select('*')
-          .eq('id', session.user.id)
-          .single();
-
-        if (userError) {
-          console.error('Error fetching user data:', userError);
+      try {
+        // Prefer server-side session hydration (cookie-based)
+        const resp = await apiClient.request('/auth/me', { method: 'GET', skipAuthRefresh: true });
+        const serverUser = resp?.data?.user;
+        const profile = resp?.data?.profile;
+        if (serverUser) {
+          const merged = { ...serverUser, profile };
+          setUser(merged);
+          saveStoredUser(merged);
         } else {
-          setUser({
-            ...session.user,
-            ...userData,
-            role: userData?.role || 'student'
-          });
+          // try load from local cache
+          const cached = loadStoredUser();
+          if (cached) setUser(cached);
         }
+      } catch (err) {
+        // Fallback to supabase client session if backend not reachable
+        try {
+          const { data: { session }, error } = await supabase.auth.getSession();
+          if (!error && session?.user) {
+            const { data: userData, error: userError } = await supabase
+              .from('users')
+              .select('*')
+              .eq('id', session.user.id)
+              .single();
+            if (!userError) {
+              const merged = { ...session.user, ...userData, role: userData?.role || 'student' };
+              setUser(merged);
+              saveStoredUser(merged);
+            }
+          }
+        } catch (e) {
+          console.error('Session hydration fallback failed', e);
+        }
+      } finally {
+        setLoading(false);
       }
-
-      setLoading(false);
     };
 
     getInitialSession();
@@ -87,40 +101,22 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const login = async (credentials) => {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: credentials.email,
-      password: credentials.password,
-    });
-
-    if (error) throw error;
-
-    // User data will be set by the auth state change listener
-    return { user: data.user, session: data.session };
+    // Use backend login which sets httpOnly cookies and returns user/session
+    const resp = await apiClient.login({ email: credentials.email, password: credentials.password });
+    // resp.data.user shape similar to buildUserResponse
+    if (resp?.data?.user) {
+      setUser({ ...resp.data.user, profile: resp.data.profile });
+    }
+    return resp;
   };
 
   const signup = async (userData) => {
-    const { data, error } = await supabase.auth.signUp({
-      email: userData.email,
-      password: userData.password_hash || userData.password,
-      options: {
-        data: {
-          role: userData.role || 'student',
-          name: userData.name,
-        }
-      }
-    });
-
-    if (error) throw error;
-
-    // For signup, we might need to create additional profile data
-    // This will be handled by database triggers or additional API calls
-    return { user: data.user, session: data.session };
+    return apiClient.signup(userData);
   };
 
   const logout = async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) throw error;
-    // User will be set to null by the auth state change listener
+    await apiClient.logout();
+    setUser(null);
   };
 
   const resetPassword = async (email) => {

@@ -5,6 +5,7 @@ const {
   registerAlumni,
   login,
   refreshSession,
+  getSession,
   forgotPasswordGenerateOtp,
   resetPasswordWithOTP,
   generateEmailVerificationOTP,
@@ -41,6 +42,9 @@ router.post("/login", login);
 
 // Refresh session
 router.post("/refresh", refreshSession);
+
+// Current session / me
+router.get('/me', authenticate, getSession);
 
 // Google OAuth helper (returns Supabase hosted URL)
 router.get("/oauth/google", startGoogleOAuth);

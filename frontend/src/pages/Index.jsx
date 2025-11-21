@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { GraduationCap, Users, Briefcase, TrendingUp, ArrowRight, CheckCircle } from "lucide-react";
+import { Users, Briefcase, TrendingUp, ArrowRight, CheckCircle } from "lucide-react";
+import GraduationCap from '@/components/icons/GraduationCap';
 import { Link } from "react-router-dom";
 import Header from "@/components/Header";
 

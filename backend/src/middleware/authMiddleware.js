@@ -3,7 +3,13 @@ const db = require("../config/db");
 const { ensureAppUserRecord } = require("../services/userService");
 
 const authenticate = async (req, res, next) => {
-  const token = req.headers.authorization?.split(" ")[1];
+  // Try Authorization header first, then fallback to cookie named accessToken
+  let token = req.headers.authorization?.split(" ")[1];
+  if (!token && req.headers.cookie) {
+    // naive cookie parse to avoid adding cookie-parser dependency
+    const match = req.headers.cookie.split(';').map(c => c.trim()).find(c => c.startsWith('accessToken='));
+    if (match) token = decodeURIComponent(match.split('=')[1]);
+  }
   if (!token) {
     return res.status(401).json({ error: "Missing Bearer token" });
   }
