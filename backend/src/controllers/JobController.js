@@ -357,11 +357,43 @@ exports.deleteJob = async (req, res) => {
 
 exports.getAllJobsStudent = async (req, res) => {
   try {
-    // ✅ Fetch all jobs, joining with company & alumni info for context
-    const { data: jobs, error: jobsError } = await db
-      .from('jobs')
-      .select('*')
-      .order('created_at', { ascending: false });
+    let query = db.from('jobs').select('*');
+
+    // Apply filters
+    const { search, sort, employment_type, location, skills } = req.query;
+
+    // Search filter - search in job title and description
+    if (search) {
+      query = query.or(`job_title.ilike.%${search}%,job_description.ilike.%${search}%`);
+    }
+
+    // Employment type filter
+    if (employment_type) {
+      const types = Array.isArray(employment_type) ? employment_type : [employment_type];
+      query = query.in('employment_type', types);
+    }
+
+    // Location filter
+    if (location) {
+      const locations = Array.isArray(location) ? location : [location];
+      query = query.in('location', locations);
+    }
+
+    // Skills filter - this would require a more complex query with job skills table
+    // For now, we'll skip this as the current schema doesn't have a skills relationship
+    // TODO: Add job skills relationship table if needed
+
+    // Apply sorting
+    if (sort === 'oldest') {
+      query = query.order('created_at', { ascending: true });
+    } else if (sort === 'title') {
+      query = query.order('job_title', { ascending: true });
+    } else {
+      // Default: newest first
+      query = query.order('created_at', { ascending: false });
+    }
+
+    const { data: jobs, error: jobsError } = await query;
 
     if (jobsError) {
       console.error('Jobs fetch error:', jobsError);
@@ -386,6 +418,9 @@ exports.getAllJobsStudent = async (req, res) => {
         job_id: job.id,
         job_title: job.job_title,
         job_description: job.job_description,
+        location: job.location,
+        employment_type: job.employment_type,
+        salary_range: job.salary_range,
         created_at: job.created_at,
         company_name: company?.name,
         company_website: company?.website,

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Slider } from "@/components/ui/slider";
@@ -6,65 +6,55 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 
-export default function JobFilters() {
-  const [selectedBranches, setSelectedBranches] = useState([]);
-  const [selectedModes, setSelectedModes] = useState([]);
-  const [selectedTypes, setSelectedTypes] = useState([]);
-  const [stipendRange, setStipendRange] = useState([0, 1500000]);
-  const [selectedExperience, setSelectedExperience] = useState([]);
+export default function JobFilters({ onFilterChange, activeFilters = {} }) {
+  const [selectedTypes, setSelectedTypes] = useState(activeFilters.employment_type || []);
+  const [selectedLocations, setSelectedLocations] = useState(activeFilters.location || []);
+  const [selectedSkills, setSelectedSkills] = useState(activeFilters.skills || []);
 
-  const branches = [
-    "Computer Science & Engineering",
-    "Information Technology", 
-    "Electronics & Communication",
-    "Mechanical Engineering",
-    "Civil Engineering",
-    "Electrical Engineering",
-    "Chemical Engineering"
-  ];
-
-  const workModes = ["Remote", "On-site", "Hybrid"];
-  const jobTypes = ["Full-time", "Internship", "Contract", "Part-time"];
-  const experienceLevels = ["0-1 years", "1-2 years", "2-3 years", "3+ years"];
+  const jobTypes = ["Full-time", "Internship", "Contract", "Part-time", "Freelance"];
+  const locations = ["Remote", "Indore", "Bhopal", "Mumbai", "Delhi", "Bengaluru", "Hyderabad", "Pune"];
+  const popularSkills = ["React", "Python", "JavaScript", "Java", "Node.js", "AWS", "MongoDB", "SQL", "HTML", "CSS"];
 
   const toggleSelection = (value, selected, setter) => {
-    if (selected.includes(value)) {
-      setter(selected.filter(item => item !== value));
-    } else {
-      setter([...selected, value]);
-    }
+    const newSelection = selected.includes(value)
+      ? selected.filter(item => item !== value)
+      : [...selected, value];
+    setter(newSelection);
   };
+
+  // Update parent component when filters change
+  useEffect(() => {
+    const filters = {
+      ...(selectedTypes.length > 0 && { employment_type: selectedTypes }),
+      ...(selectedLocations.length > 0 && { location: selectedLocations }),
+      ...(selectedSkills.length > 0 && { skills: selectedSkills }),
+    };
+    onFilterChange && onFilterChange(filters);
+  }, [selectedTypes, selectedLocations, selectedSkills, onFilterChange]);
+
+  const clearAllFilters = () => {
+    setSelectedTypes([]);
+    setSelectedLocations([]);
+    setSelectedSkills([]);
+  };
+
+  const hasActiveFilters = selectedTypes.length > 0 || selectedLocations.length > 0 || selectedSkills.length > 0;
 
   return (
     <Card className="sticky top-6">
       <CardHeader>
         <CardTitle className="text-lg font-semibold">Filters</CardTitle>
-        <Button variant="link" className="text-muted-foreground p-0 h-auto w-fit">
-          Clear all
-        </Button>
+        {hasActiveFilters && (
+          <Button
+            variant="link"
+            className="text-muted-foreground p-0 h-auto w-fit justify-start"
+            onClick={clearAllFilters}
+          >
+            Clear all
+          </Button>
+        )}
       </CardHeader>
       <CardContent className="space-y-6">
-        {/* Branch Filter */}
-        <div>
-          <h3 className="font-medium mb-3">Branch</h3>
-          <div className="space-y-2 max-h-40 overflow-y-auto">
-            {branches.map((branch) => (
-              <div key={branch} className="flex items-center space-x-2">
-                <Checkbox
-                  id={branch}
-                  checked={selectedBranches.includes(branch)}
-                  onCheckedChange={() => toggleSelection(branch, selectedBranches, setSelectedBranches)}
-                />
-                <label htmlFor={branch} className="text-sm cursor-pointer">
-                  {branch}
-                </label>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <Separator />
-
         {/* Job Type Filter */}
         <div>
           <h3 className="font-medium mb-3">Job Type</h3>
@@ -72,11 +62,11 @@ export default function JobFilters() {
             {jobTypes.map((type) => (
               <div key={type} className="flex items-center space-x-2">
                 <Checkbox
-                  id={type}
+                  id={`type-${type}`}
                   checked={selectedTypes.includes(type)}
                   onCheckedChange={() => toggleSelection(type, selectedTypes, setSelectedTypes)}
                 />
-                <label htmlFor={type} className="text-sm cursor-pointer">
+                <label htmlFor={`type-${type}`} className="text-sm cursor-pointer">
                   {type}
                 </label>
               </div>
@@ -86,61 +76,19 @@ export default function JobFilters() {
 
         <Separator />
 
-        {/* Work Mode Filter */}
+        {/* Location Filter */}
         <div>
-          <h3 className="font-medium mb-3">Work Mode</h3>
-          <div className="space-y-2">
-            {workModes.map((mode) => (
-              <div key={mode} className="flex items-center space-x-2">
+          <h3 className="font-medium mb-3">Location</h3>
+          <div className="space-y-2 max-h-40 overflow-y-auto">
+            {locations.map((location) => (
+              <div key={location} className="flex items-center space-x-2">
                 <Checkbox
-                  id={mode}
-                  checked={selectedModes.includes(mode)}
-                  onCheckedChange={() => toggleSelection(mode, selectedModes, setSelectedModes)}
+                  id={`location-${location}`}
+                  checked={selectedLocations.includes(location)}
+                  onCheckedChange={() => toggleSelection(location, selectedLocations, setSelectedLocations)}
                 />
-                <label htmlFor={mode} className="text-sm cursor-pointer">
-                  {mode}
-                </label>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <Separator />
-
-        {/* Stipend Range Filter */}
-        <div>
-          <h3 className="font-medium mb-3">Stipend Range</h3>
-          <div className="px-2">
-            <Slider
-              value={stipendRange}
-              onValueChange={setStipendRange}
-              max={1500000}
-              min={0}
-              step={50000}
-              className="mb-4"
-            />
-            <div className="flex justify-between text-sm text-muted-foreground">
-              <span>₹{(stipendRange[0] / 100000).toFixed(1)}L</span>
-              <span>₹{(stipendRange[1] / 100000).toFixed(1)}L</span>
-            </div>
-          </div>
-        </div>
-
-        <Separator />
-
-        {/* Experience Filter */}
-        <div>
-          <h3 className="font-medium mb-3">Experience Level</h3>
-          <div className="space-y-2">
-            {experienceLevels.map((level) => (
-              <div key={level} className="flex items-center space-x-2">
-                <Checkbox
-                  id={level}
-                  checked={selectedExperience.includes(level)}
-                  onCheckedChange={() => toggleSelection(level, selectedExperience, setSelectedExperience)}
-                />
-                <label htmlFor={level} className="text-sm cursor-pointer">
-                  {level}
+                <label htmlFor={`location-${location}`} className="text-sm cursor-pointer">
+                  {location}
                 </label>
               </div>
             ))}
@@ -151,13 +99,14 @@ export default function JobFilters() {
 
         {/* Popular Skills */}
         <div>
-          <h3 className="font-medium mb-3">Popular Skills</h3>
+          <h3 className="font-medium mb-3">Skills</h3>
           <div className="flex flex-wrap gap-2">
-            {["React", "Python", "JavaScript", "Java", "Node.js", "AWS", "MongoDB", "SQL"].map((skill) => (
+            {popularSkills.map((skill) => (
               <Badge
                 key={skill}
-                variant="outline"
+                variant={selectedSkills.includes(skill) ? "default" : "outline"}
                 className="cursor-pointer hover:bg-primary hover:text-primary-foreground transition-colors"
+                onClick={() => toggleSelection(skill, selectedSkills, setSelectedSkills)}
               >
                 {skill}
               </Badge>

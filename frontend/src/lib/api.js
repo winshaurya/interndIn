@@ -248,8 +248,32 @@ class ApiClient {
 
   // ================= Job endpoints =================
   async getJobs(filters = {}) {
-    const queryParams = new URLSearchParams(filters).toString();
-    return this.request(`/job/get-all-jobs-student?${queryParams}`);
+    // Build query parameters from filters
+    const queryParams = new URLSearchParams();
+
+    // Handle search query
+    if (filters.search) {
+      queryParams.append('search', filters.search);
+    }
+
+    // Handle sort
+    if (filters.sort) {
+      queryParams.append('sort', filters.sort);
+    }
+
+    // Handle array filters (employment_type, location, skills)
+    ['employment_type', 'location', 'skills'].forEach(filterKey => {
+      if (filters[filterKey] && Array.isArray(filters[filterKey]) && filters[filterKey].length > 0) {
+        filters[filterKey].forEach(value => {
+          queryParams.append(filterKey, value);
+        });
+      }
+    });
+
+    const queryString = queryParams.toString();
+    const endpoint = queryString ? `/job/get-all-jobs-student?${queryString}` : '/job/get-all-jobs-student';
+
+    return this.request(endpoint);
   }
 
   async getJobById(id) {

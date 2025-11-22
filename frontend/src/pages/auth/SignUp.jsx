@@ -86,7 +86,7 @@ const SignUp = () => {
 
   const handleGoogleSignUp = async (role) => {
     try {
-      await signInWithGoogle();
+      await signInWithGoogle(role);
     } catch (error) {
       toast({
         title: "Google sign up failed",

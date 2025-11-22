@@ -4,19 +4,30 @@ const { authenticate } = require("../middleware/authMiddleware");
 const validate = require('../middleware/validationMiddleware');
 const { postJobSchema, updateJobSchema } = require('../validation/jobSchemas');
 // const { authorize } = require("../middleware/roleMiddleware");
+
+// Import from separate controllers
 const {
   postJob,
   getMyJobs,
   getJobById,
   updateJob,
   deleteJob,
+} = require("../controllers/JobPostingController");
+
+const {
   getAllJobsStudent,
   getJobByIdStudent,
+} = require("../controllers/JobBrowsingController");
+
+const {
   applyJob,
   getAppliedJobs,
   withdrawApplication,
+} = require("../controllers/JobApplicationController");
+
+const {
   viewApplicants,
-} = require("../controllers/JobController");
+} = require("../controllers/JobManagementController");
 
 // Alumni can post jobs
 // router.post("/", protect, authorize("alumni"), postJob);

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -22,11 +22,11 @@ import {
   Home,
   Search,
   Bell,
-  MessageSquare
+  AlertTriangle
 } from "lucide-react";
 
 const Header = () => {
-  const { user, signOut, isAuthenticated } = useAuth();
+  const { user, signOut, isAuthenticated, sessionWarning } = useAuth();
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
 
@@ -35,7 +35,7 @@ const Header = () => {
       await signOut();
       navigate("/");
     } catch (error) {
-      console.error("Sign out error:", error);
+      // Handle error silently for production
     }
   };
 
@@ -52,20 +52,36 @@ const Header = () => {
     return user.role === "student" ? "/student" : "/alumni";
   };
 
-  const navigationItems = [
-    { label: "Home", href: "/", icon: Home },
-    { label: "Jobs", href: "/jobs", icon: Search },
-  ];
+  const getDashboardLabel = () => {
+    if (!user) return "Dashboard";
+    return user.role === "student" ? "Student Dashboard" : "Alumni Dashboard";
+  };
 
-  const userNavigationItems = user?.role === "student" ? [
-    { label: "Dashboard", href: "/student", icon: GraduationCap },
-    { label: "Profile", href: "/student/profile", icon: User },
-    { label: "Applications", href: "/student/applications", icon: Briefcase },
-  ] : user?.role === "alumni" ? [
-    { label: "Dashboard", href: "/alumni", icon: Briefcase },
-    { label: "Profile", href: "/alumni/profile", icon: User },
-    { label: "Post Job", href: "/alumni/post-job", icon: Briefcase },
-  ] : [];
+  // Navigation items based on user role
+  const getNavigationItems = () => {
+    if (!user) return [];
+
+    if (user.role === "student") {
+      return [
+        { label: "Dashboard", href: "/student", icon: Home },
+        { label: "Find Jobs", href: "/jobs", icon: Search },
+        { label: "My Applications", href: "/student/applications", icon: Briefcase },
+        { label: "Profile", href: "/student/profile", icon: User },
+      ];
+    } else if (user.role === "alumni") {
+      return [
+        { label: "Dashboard", href: "/alumni", icon: Home },
+        { label: "Post a Job", href: "/alumni/post-job", icon: Briefcase },
+        { label: "My Jobs", href: "/alumni/jobs", icon: Search },
+        { label: "Company", href: "/alumni/company", icon: GraduationCap },
+        { label: "Profile", href: "/alumni/profile", icon: User },
+      ];
+    }
+
+    return [];
+  };
+
+  const navigationItems = getNavigationItems();
 
   if (!isAuthenticated) {
     return (
@@ -78,29 +94,10 @@ const Header = () => {
             <span className="text-xl font-bold">interndIn</span>
           </Link>
 
-          <nav className="hidden md:flex items-center space-x-6">
-            {navigationItems.map((item) => (
-              <Link
-                key={item.href}
-                to={item.href}
-                className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-              >
-                {item.label}
-              </Link>
-            ))}
-          </nav>
-
           <div className="flex items-center space-x-4">
-            <Link to="/login">
-              <Button variant="ghost" size="sm">
-                Sign In
-              </Button>
-            </Link>
-            <Link to="/signup">
-              <Button size="sm">
-                Get Started
-              </Button>
-            </Link>
+            <Button variant="ghost" size="sm" onClick={() => navigate('/login')}>
+              <User className="h-5 w-5" />
+            </Button>
           </div>
         </div>
       </header>
@@ -118,30 +115,62 @@ const Header = () => {
             <span className="text-xl font-bold">interndIn</span>
           </Link>
 
-          <nav className="hidden md:flex items-center space-x-6">
-            {userNavigationItems.map((item) => (
+          <nav className="hidden lg:flex items-center space-x-1">
+            {navigationItems.map((item) => (
               <Link
                 key={item.href}
                 to={item.href}
-                className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+                className="flex items-center space-x-2 px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors"
               >
-                {item.label}
+                <item.icon className="h-4 w-4" />
+                <span>{item.label}</span>
               </Link>
             ))}
           </nav>
         </div>
 
         <div className="flex items-center space-x-4">
-          {/* Notifications - placeholder for future */}
-          <Button variant="ghost" size="sm" className="relative">
-            <Bell className="h-5 w-5" />
-            <span className="absolute -top-1 -right-1 h-2 w-2 bg-red-500 rounded-full"></span>
-          </Button>
+          {/* Session warning */}
+          {sessionWarning && (
+            <div className="hidden md:flex items-center space-x-2 text-amber-600 bg-amber-50 px-3 py-1 rounded-md">
+              <AlertTriangle className="h-4 w-4" />
+              <span className="text-sm">Session expires soon</span>
+            </div>
+          )}
 
-          {/* Messages - placeholder for future */}
-          <Button variant="ghost" size="sm">
-            <MessageSquare className="h-5 w-5" />
-          </Button>
+          {/* Role-specific quick actions */}
+          {user?.role === "student" && (
+            <Link to="/jobs">
+              <Button variant="ghost" size="sm" className="hidden md:flex">
+                <Search className="h-4 w-4 mr-2" />
+                Find Jobs
+              </Button>
+            </Link>
+          )}
+
+          {user?.role === "alumni" && (
+            <Link to="/alumni/post-job">
+              <Button variant="ghost" size="sm" className="hidden md:flex">
+                <Briefcase className="h-4 w-4 mr-2" />
+                Post Job
+              </Button>
+            </Link>
+          )}
+
+          {/* Notifications */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="relative">
+                <Bell className="h-5 w-5" />
+                <span className="absolute -top-1 -right-1 h-2 w-2 bg-red-500 rounded-full"></span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>Notifications</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem>No new notifications</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           {/* User Menu */}
           <DropdownMenu>
@@ -164,7 +193,7 @@ const Header = () => {
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => navigate(getUserHomeRoute())}>
                 <Home className="mr-2 h-4 w-4" />
-                Dashboard
+                {getDashboardLabel()}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => navigate(`/${user?.role}/profile`)}>
                 <User className="mr-2 h-4 w-4" />
@@ -185,7 +214,7 @@ const Header = () => {
           {/* Mobile Menu */}
           <Sheet open={isOpen} onOpenChange={setIsOpen}>
             <SheetTrigger asChild>
-              <Button variant="ghost" size="sm" className="md:hidden">
+              <Button variant="ghost" size="sm" className="lg:hidden">
                 <Menu className="h-5 w-5" />
               </Button>
             </SheetTrigger>
@@ -199,10 +228,11 @@ const Header = () => {
                   <div>
                     <p className="text-sm font-medium">{user?.name}</p>
                     <p className="text-xs text-muted-foreground">{user?.email}</p>
+                    <p className="text-xs text-muted-foreground capitalize">{user?.role}</p>
                   </div>
                 </div>
 
-                {userNavigationItems.map((item) => (
+                {navigationItems.map((item) => (
                   <Button
                     key={item.href}
                     variant="ghost"

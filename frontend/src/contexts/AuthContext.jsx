@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { apiClient } from "@/lib/api";
 import { getRoleHome } from "@/lib/auth";
+import { sessionManager } from "@/lib/sessionManager";
 
 const AuthContext = createContext();
 
@@ -15,48 +16,106 @@ export const useAuth = () => {
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [sessionWarning, setSessionWarning] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(true);
 
   useEffect(() => {
-    // Get initial session
-    const getInitialSession = async () => {
+    let mounted = true;
+
+    // Initialize session manager with Supabase integration
+    sessionManager.initialize(supabase);
+
+    // Get initial session seamlessly
+    const initializeAuth = async () => {
       try {
         const { data: { session }, error } = await supabase.auth.getSession();
 
+        if (!mounted) return;
+
         if (error) {
-          console.error('Error getting session:', error);
+          setUser(null);
         } else if (session?.user) {
+          // Load user data immediately without loading state
           await loadUserData(session.user);
+        } else {
+          setUser(null);
         }
       } catch (err) {
-        console.error('getInitialSession error:', err);
+        if (mounted) setUser(null);
       } finally {
-        setLoading(false);
+        if (mounted) setIsInitializing(false);
       }
     };
 
-    getInitialSession();
+    initializeAuth();
 
-    // Listen for auth changes
+    // Listen for auth changes seamlessly
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        if (!mounted) return;
+
         try {
-          console.log('Auth state changed:', event);
-          if (session?.user) {
-            await loadUserData(session.user);
-          } else {
+
+          if (event === 'SIGNED_OUT') {
             setUser(null);
+            setSessionWarning(false);
+            return;
+          }
+
+          if (event === 'TOKEN_REFRESHED') {
+            // Session was refreshed, update user data if needed
+            if (session?.user && user) {
+              await loadUserData(session.user);
+            }
+            return;
+          }
+
+          if (event === 'SIGNED_IN' && session?.user) {
+            await loadUserData(session.user);
           }
         } catch (err) {
-          console.error('onAuthStateChange handler error:', err);
+          setUser(null);
+          setSessionWarning(false);
         }
       }
     );
 
+    // Set up session warning handler
+    const unsubscribeWarning = sessionManager.onSessionWarning((minutesLeft) => {
+      if (mounted) {
+        setSessionWarning(true);
+      }
+    });
+
+    // Set up session expiry handler
+    const unsubscribeExpiry = sessionManager.onSessionExpiry(async () => {
+      await supabase.auth.signOut();
+      if (mounted) {
+        setUser(null);
+        setSessionWarning(false);
+      }
+    });
+
     return () => {
+      mounted = false;
       subscription.unsubscribe();
+      unsubscribeWarning();
+      unsubscribeExpiry();
+      sessionManager.destroy();
     };
   }, []);
+
+  // Helper function to check if session is valid
+  const isSessionValid = (session) => {
+    if (!session || !session.expires_at) return false;
+
+    // Check if session expires within next 5 minutes
+    const expiresAt = new Date(session.expires_at * 1000);
+    const now = new Date();
+    const fiveMinutesFromNow = new Date(now.getTime() + 5 * 60 * 1000);
+
+    return expiresAt > fiveMinutesFromNow;
+  };
 
   const loadUserData = async (supabaseUser) => {
     try {
@@ -68,7 +127,6 @@ export const AuthProvider = ({ children }) => {
         .single();
 
       if (error) {
-        console.error('Error fetching user data:', error);
         // Create profile if it doesn't exist
         await createUserProfile(supabaseUser);
         return;
@@ -98,7 +156,7 @@ export const AuthProvider = ({ children }) => {
         profile
       });
     } catch (error) {
-      console.error('Error loading user data:', error);
+      // Handle error silently
     }
   };
 
@@ -118,7 +176,7 @@ export const AuthProvider = ({ children }) => {
       // Reload user data
       await loadUserData(supabaseUser);
     } catch (error) {
-      console.error('Error creating user profile:', error);
+      // Handle error silently
     }
   };
 
@@ -147,11 +205,11 @@ export const AuthProvider = ({ children }) => {
     return data;
   };
 
-  const signInWithGoogle = async () => {
+  const signInWithGoogle = async (role = 'student') => {
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
+        redirectTo: `${window.location.origin}/auth/callback?role=${role}`,
         queryParams: {
           access_type: 'offline',
           prompt: 'consent',
@@ -163,7 +221,6 @@ export const AuthProvider = ({ children }) => {
     });
 
     if (error) {
-      console.error('Google OAuth error:', error);
       throw error;
     }
     return data;
@@ -191,7 +248,8 @@ export const AuthProvider = ({ children }) => {
 
   const value = {
     user,
-    loading,
+    isInitializing,
+    sessionWarning,
     signUp,
     signIn,
     signInWithGoogle,
