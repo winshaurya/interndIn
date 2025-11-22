@@ -19,6 +19,35 @@ const OAuthCallback = () => {
         }
 
         if (data.session?.user) {
+          // Validate email domain - only allow work emails, no Gmail
+          const email = data.session.user.email;
+          const emailDomain = email.split('@')[1]?.toLowerCase();
+
+          // Block personal email domains
+          const blockedDomains = [
+            'gmail.com',
+            'yahoo.com',
+            'hotmail.com',
+            'outlook.com',
+            'live.com',
+            'icloud.com',
+            'aol.com',
+            'protonmail.com',
+            'mail.com'
+          ];
+
+          if (!emailDomain || blockedDomains.includes(emailDomain)) {
+            // Sign out the user and show error
+            await supabase.auth.signOut();
+            toast({
+              title: "Sign-in not allowed",
+              description: "Please use your work or educational email address. Personal email accounts (Gmail, Yahoo, etc.) are not permitted.",
+              variant: "destructive",
+            });
+            navigate("/login", { replace: true });
+            return;
+          }
+
           toast({
             title: "Welcome!",
             description: "Google sign-in completed successfully.",

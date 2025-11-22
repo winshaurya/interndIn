@@ -206,7 +206,10 @@ export const AuthProvider = ({ children }) => {
         redirectTo: `${window.location.origin}/auth/callback`,
         queryParams: {
           access_type: 'offline',
-          prompt: 'consent'
+          prompt: 'consent',
+          // Domain restriction will be enforced by Google OAuth consent screen
+          // Only work/educational emails will be allowed
+          hd: '*' // This tells Google to show domain selection, but actual restriction is in Google Console
         }
       }
     });
