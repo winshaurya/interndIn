@@ -1,50 +1,39 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { apiClient } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { getRoleHome } from "@/lib/auth";
+import { supabase } from "@/lib/supabase";
 
 const OAuthCallback = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { syncUserFromSession } = useAuth();
+  const { user, loading } = useAuth();
 
   useEffect(() => {
-    const fragment = window.location.hash?.replace(/^#/, "") ?? "";
-    const params = new URLSearchParams(fragment);
-    const refreshToken = params.get("refresh_token");
-
-    if (!refreshToken) {
-      toast({
-        title: "Missing OAuth token",
-        description: "We couldn't complete the Google sign-in flow.",
-        variant: "destructive",
-      });
-      navigate("/login", { replace: true });
-      return;
-    }
-
-    const finalize = async () => {
+    const handleAuthCallback = async () => {
       try {
-        const session = await apiClient.refreshSession(refreshToken);
-        if (!session?.user) {
-          throw new Error("OAuth session missing user payload");
+        const { data, error } = await supabase.auth.getSession();
+
+        if (error) {
+          throw error;
         }
 
-        syncUserFromSession(session.user);
-        toast({
-          title: "Welcome back!",
-          description: "Google sign-in completed successfully.",
-        });
+        if (data.session?.user) {
+          toast({
+            title: "Welcome!",
+            description: "Google sign-in completed successfully.",
+          });
 
-        const landing = getRoleHome(session.user.role) || "/";
-        window.history.replaceState(
-          null,
-          "",
-          `${window.location.pathname}${window.location.search}`
-        );
-        navigate(landing, { replace: true });
+          // Navigation will be handled by auth state change in context
+          // Just clean up the URL
+          window.history.replaceState(
+            null,
+            "",
+            window.location.pathname
+          );
+        } else {
+          throw new Error("No session found");
+        }
       } catch (error) {
         console.error("OAuth callback error", error);
         toast({
@@ -56,19 +45,45 @@ const OAuthCallback = () => {
       }
     };
 
-    finalize();
-  }, [navigate, syncUserFromSession, toast]);
+    handleAuthCallback();
+  }, [navigate, toast]);
 
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-subtle">
-      <div className="text-center space-y-4">
-        <p className="text-lg font-semibold">Signing you in with Google…</p>
-        <p className="text-sm text-muted-foreground">
-          Please wait while we secure your session.
-        </p>
+  // Show loading while processing
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-subtle">
+        <div className="text-center space-y-4">
+          <p className="text-lg font-semibold">Signing you in with Google…</p>
+          <p className="text-sm text-muted-foreground">
+            Please wait while we secure your session.
+          </p>
+        </div>
       </div>
-    </div>
-  );
+    );
+  }
+
+  // If user is loaded, check if profile is complete
+  if (user) {
+    const hasProfile = user.role === 'student'
+      ? user.profile?.name && user.profile?.student_id
+      : user.role === 'alumni'
+      ? user.profile?.name && user.profile?.current_title
+      : true; // admin doesn't need profile completion
+
+    if (!hasProfile) {
+      // Redirect to profile setup for incomplete profiles
+      navigate("/profile-setup", { replace: true });
+      return null;
+    }
+
+    // Profile is complete, redirect to home
+    navigate("/", { replace: true });
+    return null;
+  }
+
+  // If no user and not loading, redirect to login
+  navigate("/login", { replace: true });
+  return null;
 };
 
 export default OAuthCallback;

@@ -13,7 +13,8 @@ const buildDashboardBucketUrl = (bucketName) => {
 };
 
 /**
- * Ensure the uploads bucket exists
+ * Check if the uploads bucket is accessible
+ * Note: This is a lightweight check. Actual bucket operations will fail gracefully if bucket doesn't exist.
  */
 const ensureBucketExists = async (bucketName = 'uploads') => {
   if (!supabase) {
@@ -22,25 +23,29 @@ const ensureBucketExists = async (bucketName = 'uploads') => {
   }
 
   try {
-    const { data: buckets, error } = await supabase.storage.listBuckets();
+    // Try to list contents of the bucket (this works for public buckets)
+    // If the bucket doesn't exist or isn't accessible, this will fail
+    const { data, error } = await supabase.storage
+      .from(bucketName)
+      .list('', { limit: 1 });
+
     if (error) {
-      console.error('Error listing buckets:', error);
+      // Common errors:
+      // - Bucket doesn't exist
+      // - No permission to list
+      // - Network issues
+      console.log(`⚠️  Bucket "${bucketName}" check failed: ${error.message}`);
+      console.log(`ℹ️  This may be normal if using RLS. Upload operations will fail gracefully if bucket is truly inaccessible.`);
+      console.log(`🔗  Bucket management: ${buildDashboardBucketUrl(bucketName)}`);
       return false;
     }
 
-    const bucketExists = buckets.some((bucket) => bucket.name === bucketName);
-    if (bucketExists) {
-      console.log(`✅ Bucket "${bucketName}" exists and is accessible.`);
-      return true;
-    } else {
-      console.error(`❌ Bucket "${bucketName}" does not exist. Please create it manually in Supabase Dashboard at ${buildDashboardBucketUrl(bucketName)}`);
-      console.log(`   Reference: ${STORAGE_DOCS_URL}`);
-      return false;
-    }
+    console.log(`✅ Bucket "${bucketName}" is accessible.`);
+    return true;
+
   } catch (err) {
-    console.error('Error checking bucket existence:', err);
-    console.log(`⚠️  Please verify the bucket "${bucketName}" inside ${buildDashboardBucketUrl(bucketName)}`);
-    console.log(`   Reference: ${STORAGE_DOCS_URL}`);
+    console.log(`⚠️  Bucket "${bucketName}" accessibility check failed: ${err.message}`);
+    console.log(`ℹ️  This is usually fine - upload operations will provide clearer error messages if needed.`);
     return false;
   }
 };

@@ -95,7 +95,7 @@ export default function App() {
 
                 {/* Static pages */}
                 <Route path="/privacy" element={<Privacy />} />
-                <Route path="/profile-setup" element={<ProfileSetup />} />
+                <Route path="/profile-setup" element={<ProtectedRoute><ProfileSetup /></ProtectedRoute>} />
 
                 {/* Student workspace */}
                 <Route

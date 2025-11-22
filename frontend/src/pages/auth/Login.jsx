@@ -24,28 +24,25 @@ const Login = () => {
     password: "",
     rememberMe: false,
   });
-  const { login } = useAuth();
+  const { signIn, signInWithGoogle } = useAuth();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
 
     try {
-      const response = await login({
-        email: formData.email,
-        password: formData.password,
-      });
-
-      const pendingPath = location.state?.from;
-      const fallbackRoute = getRoleHome(response.user.role) || "/";
-      const destination = pendingPath || fallbackRoute;
+      await signIn(formData.email, formData.password);
 
       toast({
         title: "Welcome back!",
         description: "Redirecting you to your workspace",
         variant: "default",
       });
-      navigate(destination, { replace: true });
+
+      // Navigation will be handled by auth state change
+      const pendingPath = location.state?.from;
+      const fallbackRoute = getRoleHome() || "/";
+      navigate(pendingPath || fallbackRoute, { replace: true });
 
     } catch (error) {
       toast({
@@ -60,13 +57,7 @@ const Login = () => {
 
   const handleGoogleSignIn = async () => {
     try {
-      const redirectTo = `${window.location.origin}/auth/callback`;
-      const { url } = await apiClient.getGoogleOAuthUrl(redirectTo);
-      if (url) {
-        window.location.href = url;
-      } else {
-        throw new Error("Unable to start Google OAuth");
-      }
+      await signInWithGoogle();
     } catch (error) {
       toast({
         title: "Google sign-in failed",

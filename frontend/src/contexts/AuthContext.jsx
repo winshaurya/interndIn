@@ -1,7 +1,6 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import React, { createContext, useContext, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { apiClient } from "@/lib/api";
-import { loadUser as loadStoredUser, saveUser as saveStoredUser, clearUser as clearStoredUser } from '@/lib/state';
 import { getRoleHome } from "@/lib/auth";
 
 const AuthContext = createContext();
@@ -22,38 +21,25 @@ export const AuthProvider = ({ children }) => {
     // Get initial session
     const getInitialSession = async () => {
       try {
-        // Prefer server-side session hydration (cookie-based)
-        const resp = await apiClient.request('/auth/me', { method: 'GET', skipAuthRefresh: true });
-        const serverUser = resp?.data?.user;
-        const profile = resp?.data?.profile;
-        if (serverUser) {
-          const merged = { ...serverUser, profile };
-          setUser(merged);
-          saveStoredUser(merged);
-        } else {
-          // try load from local cache
-          const cached = loadStoredUser();
-          if (cached) setUser(cached);
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (error) {
+          console.error('Error getting session:', error);
+        } else if (session?.user) {
+          // persist supabase session into our apiClient/localStorage so API requests include auth tokens
+          try {
+            apiClient.persistSession({
+              accessToken: session.access_token,
+              refreshToken: session.refresh_token,
+              expiresAt: session.expires_at,
+              user: session.user,
+            });
+          } catch (e) {
+            console.error('Error persisting session to apiClient:', e);
+          }
+          await loadUserData(session.user);
         }
       } catch (err) {
-        // Fallback to supabase client session if backend not reachable
-        try {
-          const { data: { session }, error } = await supabase.auth.getSession();
-          if (!error && session?.user) {
-            const { data: userData, error: userError } = await supabase
-              .from('users')
-              .select('*')
-              .eq('id', session.user.id)
-              .single();
-            if (!userError) {
-              const merged = { ...session.user, ...userData, role: userData?.role || 'student' };
-              setUser(merged);
-              saveStoredUser(merged);
-            }
-          }
-        } catch (e) {
-          console.error('Session hydration fallback failed', e);
-        }
+        console.error('getInitialSession error:', err);
       } finally {
         setLoading(false);
       }
@@ -64,34 +50,29 @@ export const AuthProvider = ({ children }) => {
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log('Auth state changed:', event, session?.user?.id);
-
-        if (session?.user) {
-          // Fetch additional user data from users table
-          const { data: userData, error: userError } = await supabase
-            .from('users')
-            .select('*')
-            .eq('id', session.user.id)
-            .single();
-
-          if (userError) {
-            console.error('Error fetching user data:', userError);
-            setUser({
-              ...session.user,
-              role: 'student' // fallback
-            });
+        try {
+          console.log('Auth state changed:', event);
+          if (session?.user) {
+            // persist session on updates as well
+            try {
+              apiClient.persistSession({
+                accessToken: session.access_token,
+                refreshToken: session.refresh_token,
+                expiresAt: session.expires_at,
+                user: session.user,
+              });
+            } catch (e) {
+              console.error('Error persisting session to apiClient on auth change:', e);
+            }
+            await loadUserData(session.user);
           } else {
-            setUser({
-              ...session.user,
-              ...userData,
-              role: userData?.role || 'student'
-            });
+            // ensure API client clears tokens when user signed out
+            try { apiClient.clearSession(); } catch (e) { /* noop */ }
+            setUser(null);
           }
-        } else {
-          setUser(null);
+        } catch (err) {
+          console.error('onAuthStateChange handler error:', err);
         }
-
-        setLoading(false);
       }
     );
 
@@ -100,29 +81,148 @@ export const AuthProvider = ({ children }) => {
     };
   }, []);
 
-  const login = async (credentials) => {
-    // Use backend login which sets httpOnly cookies and returns user/session
-    const resp = await apiClient.login({ email: credentials.email, password: credentials.password });
-    // resp.data.user shape similar to buildUserResponse
-    if (resp?.data?.user) {
-      setUser({ ...resp.data.user, profile: resp.data.profile });
+  const loadUserData = async (supabaseUser) => {
+    try {
+      // Fetch user data from our database
+      const { data: userData, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', supabaseUser.id)
+        .single();
+
+      if (error) {
+        console.error('Error fetching user data:', error);
+        // Create profile if it doesn't exist
+        await createUserProfile(supabaseUser);
+        return;
+      }
+
+      // Load profile data
+      let profile = null;
+      if (userData.role === 'student') {
+        const { data: profileData } = await supabase
+          .from('student_profiles')
+          .select('*')
+          .eq('user_id', supabaseUser.id)
+          .single();
+        profile = profileData;
+      } else if (userData.role === 'alumni') {
+        const { data: profileData } = await supabase
+          .from('alumni_profiles')
+          .select('*')
+          .eq('user_id', supabaseUser.id)
+          .single();
+        profile = profileData;
+      }
+
+      setUser({
+        ...supabaseUser,
+        ...userData,
+        profile
+      });
+    } catch (error) {
+      console.error('Error loading user data:', error);
     }
-    return resp;
   };
 
-  const syncUserFromSession = (sessionUser) => {
-    if (!sessionUser) return;
-    const merged = { ...sessionUser };
-    setUser(merged);
-    saveStoredUser(merged);
+  const createUserProfile = async (supabaseUser) => {
+    try {
+      // Extract role from user metadata or default to student
+      const role = supabaseUser.user_metadata?.role || 'student';
+      const name = supabaseUser.user_metadata?.name || supabaseUser.email?.split('@')[0] || 'User';
+
+      // Create user profile via API
+      await apiClient.request('/auth/create-profile', {
+        method: 'POST',
+        body: JSON.stringify({
+          id: supabaseUser.id,
+          email: supabaseUser.email,
+          role,
+          name
+        })
+      });
+
+      // Reload user data
+      await loadUserData(supabaseUser);
+    } catch (error) {
+      console.error('Error creating user profile:', error);
+    }
   };
 
-  const signup = async (userData) => {
-    return apiClient.signup(userData);
+  const signUp = async (email, password, metadata = {}) => {
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: metadata
+      }
+    });
+
+    if (error) throw error;
+
+    // If signUp returns an active session (rare for email-confirm flows), persist it for API calls
+    if (data?.session) {
+      try {
+        apiClient.persistSession({
+          accessToken: data.session.access_token,
+          refreshToken: data.session.refresh_token,
+          expiresAt: data.session.expires_at,
+          user: data.session.user,
+        });
+      } catch (e) {
+        console.error('Error persisting session on signUp:', e);
+      }
+    }
+    return data;
   };
 
-  const logout = async () => {
-    await apiClient.logout();
+  const signIn = async (email, password) => {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password
+    });
+
+    if (error) throw error;
+
+    if (data?.session) {
+      try {
+        apiClient.persistSession({
+          accessToken: data.session.access_token,
+          refreshToken: data.session.refresh_token,
+          expiresAt: data.session.expires_at,
+          user: data.session.user,
+        });
+      } catch (e) {
+        console.error('Error persisting session on signIn:', e);
+      }
+    }
+    return data;
+  };
+
+  const signInWithGoogle = async () => {
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+        queryParams: {
+          access_type: 'offline',
+          prompt: 'consent'
+        }
+      }
+    });
+
+    if (error) {
+      console.error('Google OAuth error:', error);
+      throw error;
+    }
+    return data;
+  };
+
+  const signOut = async () => {
+    const { error } = await supabase.auth.signOut();
+    if (error) throw error;
+    // Clear persisted API client session as well
+    try { apiClient.clearSession(); } catch (e) { /* noop */ }
     setUser(null);
   };
 
@@ -140,22 +240,21 @@ export const AuthProvider = ({ children }) => {
     if (error) throw error;
   };
 
-  const isAuthenticated = Boolean(user);
-
-  const value = useMemo(() => ({
+  const value = {
     user,
-    role: user?.role || null,
-    isAuthenticated,
-    login,
-    syncUserFromSession,
-    signup,
-    logout,
+    loading,
+    signUp,
+    signIn,
+    signInWithGoogle,
+    signOut,
+    // keep common naming for consumers expecting `logout`
+    logout: signOut,
     resetPassword,
     updatePassword,
-    loading,
+    isAuthenticated: !!user,
+    role: user?.role || null,
     getHomeRoute: () => getRoleHome(user?.role),
-    authStatus: loading ? "loading" : isAuthenticated ? "authenticated" : "unauthenticated",
-  }), [user, loading, isAuthenticated]);
+  };
 
   return (
     <AuthContext.Provider value={value}>
@@ -163,3 +262,5 @@ export const AuthProvider = ({ children }) => {
     </AuthContext.Provider>
   );
 };
+
+export default AuthProvider;

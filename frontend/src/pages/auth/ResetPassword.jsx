@@ -7,11 +7,13 @@ import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Mail } from "lucide-react";
 import GraduationCap from '@/components/icons/GraduationCap';
 import { Link } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 
 const ResetPassword = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
   const { toast } = useToast();
+  const { resetPassword } = useAuth();
 
   const [email, setEmail] = useState("");
 
@@ -19,15 +21,22 @@ const ResetPassword = () => {
     e.preventDefault();
     setIsLoading(true);
 
-    // Simulate API call
-    setTimeout(() => {
+    try {
+      await resetPassword(email);
       setEmailSent(true);
       toast({
         title: "Reset link sent!",
         description: "Check your email for password reset instructions.",
       });
+    } catch (error) {
+      toast({
+        title: "Reset failed",
+        description: error.message || "Something went wrong. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
       setIsLoading(false);
-    }, 2000);
+    }
   };
 
   if (emailSent) {

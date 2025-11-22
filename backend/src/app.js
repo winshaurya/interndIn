@@ -5,7 +5,6 @@ const express = require("express");
 const app = express();
 const cors = require("cors");
 const bodyParser = require("body-parser");
-const cookieParser = require('cookie-parser');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
@@ -14,7 +13,6 @@ const authRoutes = require("./Routes/authRoutes");
 const studentRoutes = require("./Routes/studentRoutes");
 const alumniRoutes = require("./Routes/alumniRoutes");
 const adminRoutes = require("./Routes/adminRoutes");
-const authUtilityRoutes = require("./Routes/authUtilityRoutes");
 const JobRoutes = require("./Routes/JobRoutes");
 const utilityRoutes = require("./Routes/utilityRoutes");
 const uploadRoutes = require("./Routes/uploadRoutes");
@@ -101,15 +99,12 @@ app.use(limiter);
 
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
-// parse cookies so req.cookies is available for auth endpoints
-app.use(cookieParser());
 
 // ==================== ROUTES ====================
 app.use("/api/auth", authRoutes);
 app.use("/api/student", studentRoutes);
 app.use("/api/alumni", alumniRoutes);
 app.use("/api/admin", adminRoutes);
-app.use("/api/authUtil", authUtilityRoutes);
 app.use("/api/job", JobRoutes);
 app.use("/api/upload", uploadRoutes);
 app.use("/api/profile", profileRoutes);

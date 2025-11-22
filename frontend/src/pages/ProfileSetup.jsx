@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { Navigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,9 +12,10 @@ import { useAuth } from "@/contexts/AuthContext";
 
 const ProfileSetup = () => {
   const [isLoading, setIsLoading] = useState(false);
+  const [savingField, setSavingField] = useState(null);
   const { toast } = useToast();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
 
   const [formData, setFormData] = useState({
     name: "",
@@ -23,6 +25,81 @@ const ProfileSetup = () => {
     gradYear: "",
     currentTitle: "",
   });
+
+  // Redirect if not authenticated (protect against public route) and show loader while we wait
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">Loading...</div>
+    );
+  }
+
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  // Load existing profile data if available
+  useEffect(() => {
+    if (user?.profile) {
+      setFormData({
+        name: user.profile.name || "",
+        phone: user.profile.phone || "",
+        studentId: user.profile.student_id || "",
+        branch: user.profile.branch || "",
+        gradYear: user.profile.grad_year?.toString() || "",
+        currentTitle: user.profile.current_title || "",
+      });
+    }
+  }, [user]);
+
+  // Auto-save individual fields
+  const saveField = async (fieldName, value) => {
+    if (!value || savingField === fieldName) return;
+
+    setSavingField(fieldName);
+    try {
+      // Prepare the data to save based on field
+      let dataToSave = {};
+
+      switch (fieldName) {
+        case 'name':
+          dataToSave = { name: value };
+          break;
+        case 'phone':
+          dataToSave = { phone: value };
+          break;
+        case 'studentId':
+          dataToSave = { student_id: value };
+          break;
+        case 'branch':
+          dataToSave = { branch: value };
+          break;
+        case 'gradYear':
+          dataToSave = { grad_year: parseInt(value) };
+          break;
+        case 'currentTitle':
+          dataToSave = { current_title: value };
+          break;
+        default:
+          return;
+      }
+
+      const endpoint = user.role === "student" ? '/profile/student' : '/profile/alumni';
+
+      await apiClient.request(endpoint, {
+        method: 'PUT',
+        body: JSON.stringify(dataToSave),
+      });
+
+      // Show subtle success feedback
+      console.log(`${fieldName} saved successfully`);
+
+    } catch (error) {
+      console.error(`Failed to save ${fieldName}:`, error);
+      // Don't show toast for auto-save failures to avoid spam
+    } finally {
+      setSavingField(null);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -108,6 +185,7 @@ const ProfileSetup = () => {
                   placeholder="Enter your full name"
                   value={formData.name}
                   onChange={(e) => handleInputChange("name", e.target.value)}
+                  onBlur={(e) => saveField("name", e.target.value)}
                   required
                 />
               </div>
@@ -121,6 +199,7 @@ const ProfileSetup = () => {
                   placeholder="+91 9876543210"
                   value={formData.phone}
                   onChange={(e) => handleInputChange("phone", e.target.value)}
+                  onBlur={(e) => saveField("phone", e.target.value)}
                   required
                 />
               </div>
@@ -136,6 +215,7 @@ const ProfileSetup = () => {
                       placeholder="Enter your student ID"
                       value={formData.studentId}
                       onChange={(e) => handleInputChange("studentId", e.target.value)}
+                      onBlur={(e) => saveField("studentId", e.target.value)}
                       required
                     />
                   </div>
@@ -143,7 +223,13 @@ const ProfileSetup = () => {
                   {/* Branch */}
                   <div className="space-y-2">
                     <Label htmlFor="branch">Branch</Label>
-                    <Select onValueChange={(value) => handleInputChange("branch", value)} value={formData.branch}>
+                    <Select
+                      onValueChange={(value) => {
+                        handleInputChange("branch", value);
+                        saveField("branch", value);
+                      }}
+                      value={formData.branch}
+                    >
                       <SelectTrigger>
                         <SelectValue placeholder="Select your branch" />
                       </SelectTrigger>
@@ -164,7 +250,13 @@ const ProfileSetup = () => {
                   {/* Graduation Year */}
                   <div className="space-y-2">
                     <Label htmlFor="gradYear">Graduation Year</Label>
-                    <Select onValueChange={(value) => handleInputChange("gradYear", value)} value={formData.gradYear}>
+                    <Select
+                      onValueChange={(value) => {
+                        handleInputChange("gradYear", value);
+                        saveField("gradYear", value);
+                      }}
+                      value={formData.gradYear}
+                    >
                       <SelectTrigger>
                         <SelectValue placeholder="Select graduation year" />
                       </SelectTrigger>
@@ -194,6 +286,7 @@ const ProfileSetup = () => {
                       placeholder="e.g. Software Engineer"
                       value={formData.currentTitle}
                       onChange={(e) => handleInputChange("currentTitle", e.target.value)}
+                      onBlur={(e) => saveField("currentTitle", e.target.value)}
                       required
                     />
                   </div>
@@ -201,7 +294,13 @@ const ProfileSetup = () => {
                   {/* Graduation Year */}
                   <div className="space-y-2">
                     <Label htmlFor="gradYear">Graduation Year</Label>
-                    <Select onValueChange={(value) => handleInputChange("gradYear", value)} value={formData.gradYear}>
+                    <Select
+                      onValueChange={(value) => {
+                        handleInputChange("gradYear", value);
+                        saveField("gradYear", value);
+                      }}
+                      value={formData.gradYear}
+                    >
                       <SelectTrigger>
                         <SelectValue placeholder="Select graduation year" />
                       </SelectTrigger>
