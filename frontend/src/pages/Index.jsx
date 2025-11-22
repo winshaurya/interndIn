@@ -4,30 +4,55 @@ import { Users, Briefcase, TrendingUp, ArrowRight, CheckCircle } from "lucide-re
 import GraduationCap from '@/components/icons/GraduationCap';
 import { Link } from "react-router-dom";
 import Header from "@/components/Header";
+import { useState, useEffect } from "react";
+import { apiClient } from "@/lib/api";
 
 const Index = () => {
-  const features = [
-    {
-      icon: Users,
-      title: "Alumni Network",
-      description: "Connect with SGSITS alumni working in top companies worldwide"
-    },
-    {
-      icon: Briefcase,
-      title: "Job Opportunities",
-      description: "Access exclusive job postings and internships from alumni companies"
-    },
-    {
-      icon: TrendingUp,
-      title: "Career Growth",
-      description: "Get mentorship and career guidance from experienced professionals"
-    },
-    {
-      icon: CheckCircle,
-      title: "Quality Matches",
-      description: "Smart matching based on your skills, branch, and preferences"
+  const [features, setFeatures] = useState([]);
+
+  useEffect(() => {
+    const loadFeatures = async () => {
+      try {
+        const featuresData = await apiClient.getFeatures();
+        setFeatures(featuresData);
+      } catch (error) {
+        // Fallback to hardcoded
+        setFeatures([
+          {
+            icon: "Users",
+            title: "Alumni Network",
+            description: "Connect with SGSITS alumni working in top companies worldwide"
+          },
+          {
+            icon: "Briefcase",
+            title: "Job Opportunities",
+            description: "Access exclusive job postings and internships from alumni companies"
+          },
+          {
+            icon: "TrendingUp",
+            title: "Career Growth",
+            description: "Get mentorship and career guidance from experienced professionals"
+          },
+          {
+            icon: "CheckCircle",
+            title: "Quality Matches",
+            description: "Smart matching based on your skills, branch, and preferences"
+          }
+        ]);
+      }
+    };
+    loadFeatures();
+  }, []);
+
+  const getIcon = (iconName) => {
+    switch (iconName) {
+      case "Users": return Users;
+      case "Briefcase": return Briefcase;
+      case "TrendingUp": return TrendingUp;
+      case "CheckCircle": return CheckCircle;
+      default: return Users;
     }
-  ];
+  };
 
   return (
     <div className="min-h-screen bg-gradient-subtle">
@@ -82,7 +107,7 @@ const Index = () => {
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {features.map((feature, index) => {
-              const Icon = feature.icon;
+              const Icon = getIcon(feature.icon);
               return (
                 <Card key={index} className="text-center hover:shadow-lg transition-shadow">
                   <CardHeader>

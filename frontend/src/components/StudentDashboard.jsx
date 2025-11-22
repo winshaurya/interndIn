@@ -12,17 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import DataState from "@/components/common/DataState";
 import ApplicationHistory from "@/components/ApplicationHistory";
 
-const quickActions = [
-  { label: "Update Profile", to: "/student/profile" },
-  { label: "Browse Jobs", to: "/jobs" },
-  { label: "View Applications", to: "/student/applications" },
-];
 
-const defaultTimeline = [
-  { title: "Profile created", date: "Jan 06", status: "completed" },
-  { title: "First application", date: "Jan 10", status: "completed" },
-  { title: "Upcoming interview", date: "Jan 24", status: "upcoming" },
-];
 
 export default function StudentDashboard() {
   const navigate = useNavigate();
@@ -43,6 +33,14 @@ export default function StudentDashboard() {
   } = useQuery({
     queryKey: ["student-profile"],
     queryFn: () => apiClient.getStudentProfile(),
+  });
+
+  const {
+    data: dashboardResponse,
+    isLoading: dashboardLoading,
+  } = useQuery({
+    queryKey: ["student-dashboard"],
+    queryFn: () => apiClient.request("/student/dashboard"),
   });
 
   const {
@@ -130,7 +128,7 @@ export default function StudentDashboard() {
             <CardTitle className="text-base font-semibold">Quick actions</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {quickActions.map((action) => (
+            {(dashboardResponse?.quickActions || []).map((action) => (
               <Button
                 key={action.label}
                 variant="ghost"
@@ -148,10 +146,10 @@ export default function StudentDashboard() {
       <section className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
         {["Applications", "Interviews", "Offers", "Bookmarks"].map((label, index) => {
           const value = [
-            profile?.applications_count,
-            profile?.interviews_count,
-            profile?.offers_count,
-            profile?.bookmarks_count,
+            dashboardResponse?.applications_count,
+            dashboardResponse?.interviews_count,
+            dashboardResponse?.offers_count,
+            dashboardResponse?.bookmarks_count,
           ][index] || 0;
           const Icon = [FileText, Target, Sparkles, BookMarked][index];
           return (
@@ -227,7 +225,7 @@ export default function StudentDashboard() {
             <CardTitle className="text-base">Journey timeline</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {defaultTimeline.map((item) => (
+            {(dashboardResponse?.timeline || []).map((item) => (
               <div key={item.title} className="flex items-start gap-3">
                 <div className={`mt-1 h-2.5 w-2.5 rounded-full ${item.status === "completed" ? "bg-primary" : "bg-muted-foreground/60"}`} />
                 <div>

@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { apiClient } from "@/lib/api";
 import { determineRedirectAfterAuth } from "@/lib/auth";
 
 const OAuthCallback = () => {
@@ -15,91 +16,46 @@ const OAuthCallback = () => {
     const handleAuthCallback = async () => {
       try {
         setStatus("Verifying authentication...");
-        const { data, error } = await supabase.auth.getSession();
 
-        if (error) {
-          console.error("Auth callback error:", error);
-          setStatus("Authentication failed. Redirecting to login...");
-          setTimeout(() => navigate("/login"), 2000);
-          return;
+        // Get the current session
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+        if (sessionError || !session) {
+          throw new Error('No valid session found');
         }
 
-        if (data?.session?.user) {
-          const user = data.session.user;
-          const roleFromUrl = searchParams.get('role') || 'student';
+        const role = searchParams.get('role') || 'student';
 
-          setStatus("Checking user profile...");
+        setStatus("Creating your account...");
 
-          // Check if user exists in our database
-          let { data: userData, error: userError } = await supabase
-            .from('users')
-            .select('role')
-            .eq('id', user.id)
-            .single();
+        // Exchange the session for our backend session data
+        const callbackData = await apiClient.request('/auth/oauth/callback', {
+          method: 'POST',
+          body: JSON.stringify({
+            code: session.access_token, // Use access token as code for simplicity
+            role
+          })
+        });
 
-          let isNewUser = false;
+        setStatus("Setting up your profile...");
 
-          if (userError && userError.code === 'PGRST116') {
-            // User doesn't exist, create profile with role from URL
-            setStatus("Creating your profile...");
-            isNewUser = true;
+        // Create user object for redirection
+        const userForRedirect = {
+          id: callbackData.user.id,
+          email: callbackData.user.email,
+          role: callbackData.user.role,
+          profile: callbackData.profile,
+          isNewUser: callbackData.isNewUser
+        };
 
-            try {
-              const response = await fetch('/api/auth/create-profile', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                  id: user.id,
-                  email: user.email,
-                  role: roleFromUrl,
-                }),
-              });
+        const redirectPath = determineRedirectAfterAuth(userForRedirect, callbackData.isNewUser);
 
-              if (!response.ok) {
-                throw new Error('Failed to create profile');
-              }
+        setStatus("Welcome! Redirecting to your dashboard...");
+        setTimeout(() => navigate(redirectPath, { replace: true }), 1000);
 
-              // Reload user data
-              const { data: newUserData } = await supabase
-                .from('users')
-                .select('role')
-                .eq('id', user.id)
-                .single();
-
-              userData = newUserData;
-            } catch (createError) {
-              console.error("Error creating user profile:", createError);
-              setStatus("Profile creation failed. Redirecting to login...");
-              setTimeout(() => navigate("/login"), 2000);
-              return;
-            }
-          }
-
-          setStatus("Loading your dashboard...");
-
-          // Create user object for redirection logic
-          const userForRedirect = {
-            id: user.id,
-            email: user.email,
-            role: userData?.role || roleFromUrl,
-            profile: null, // Will be loaded by AuthContext
-          };
-
-          const redirectPath = determineRedirectAfterAuth(userForRedirect, isNewUser);
-
-          // Successfully authenticated, redirect to appropriate page
-          setStatus("Welcome! Redirecting to your dashboard...");
-          setTimeout(() => navigate(redirectPath, { replace: true }), 1000);
-        } else {
-          // No session, redirect to login
-          setStatus("No active session found. Redirecting to login...");
-          setTimeout(() => navigate("/login"), 2000);
-        }
       } catch (err) {
         console.error("Callback handling error:", err);
-        setStatus("An error occurred. Redirecting to login...");
+        setStatus("Authentication failed. Redirecting to login...");
         setTimeout(() => navigate("/login"), 2000);
       } finally {
         setIsProcessing(false);

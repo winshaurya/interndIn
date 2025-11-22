@@ -13,6 +13,8 @@ import { useAuth } from "@/contexts/AuthContext";
 const ProfileSetup = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [savingField, setSavingField] = useState(null);
+  const [branches, setBranches] = useState([]);
+  const [gradYears, setGradYears] = useState([]);
   const { toast } = useToast();
   const navigate = useNavigate();
   const { user, loading } = useAuth();
@@ -50,6 +52,35 @@ const ProfileSetup = () => {
       });
     }
   }, [user]);
+
+  // Load branches and grad years
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const [branchesData, gradYearsData] = await Promise.all([
+          apiClient.getBranches(),
+          apiClient.getGradYears(),
+        ]);
+        setBranches(branchesData);
+        setGradYears(gradYearsData);
+      } catch (error) {
+        // Fallback to hardcoded if needed
+        setBranches([
+          { value: "CSE", label: "Computer Science & Engineering" },
+          { value: "IT", label: "Information Technology" },
+          { value: "ECE", label: "Electronics & Communication Engineering" },
+          { value: "EE", label: "Electrical Engineering" },
+          { value: "ME", label: "Mechanical Engineering" },
+          { value: "CE", label: "Civil Engineering" },
+          { value: "CHE", label: "Chemical Engineering" },
+          { value: "MCA", label: "Master of Computer Applications" },
+          { value: "MBA", label: "Master of Business Administration" },
+        ]);
+        setGradYears(Array.from({ length: 10 }, (_, i) => new Date().getFullYear() + 4 - i));
+      }
+    };
+    loadData();
+  }, []);
 
   // Auto-save individual fields
   const saveField = async (fieldName, value) => {
@@ -91,10 +122,8 @@ const ProfileSetup = () => {
       });
 
       // Show subtle success feedback
-      console.log(`${fieldName} saved successfully`);
 
     } catch (error) {
-      console.error(`Failed to save ${fieldName}:`, error);
       // Don't show toast for auto-save failures to avoid spam
     } finally {
       setSavingField(null);
@@ -234,15 +263,11 @@ const ProfileSetup = () => {
                         <SelectValue placeholder="Select your branch" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="CSE">Computer Science & Engineering</SelectItem>
-                        <SelectItem value="IT">Information Technology</SelectItem>
-                        <SelectItem value="ECE">Electronics & Communication Engineering</SelectItem>
-                        <SelectItem value="EE">Electrical Engineering</SelectItem>
-                        <SelectItem value="ME">Mechanical Engineering</SelectItem>
-                        <SelectItem value="CE">Civil Engineering</SelectItem>
-                        <SelectItem value="CHE">Chemical Engineering</SelectItem>
-                        <SelectItem value="MCA">Master of Computer Applications</SelectItem>
-                        <SelectItem value="MBA">Master of Business Administration</SelectItem>
+                        {branches.map((branch) => (
+                          <SelectItem key={branch.value} value={branch.value}>
+                            {branch.label}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
@@ -261,14 +286,11 @@ const ProfileSetup = () => {
                         <SelectValue placeholder="Select graduation year" />
                       </SelectTrigger>
                       <SelectContent>
-                        {Array.from({ length: 10 }, (_, i) => {
-                          const year = new Date().getFullYear() + 4 - i;
-                          return (
-                            <SelectItem key={year} value={year.toString()}>
-                              {year}
-                            </SelectItem>
-                          );
-                        })}
+                        {gradYears.map((year) => (
+                          <SelectItem key={year} value={year.toString()}>
+                            {year}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
@@ -305,14 +327,11 @@ const ProfileSetup = () => {
                         <SelectValue placeholder="Select graduation year" />
                       </SelectTrigger>
                       <SelectContent>
-                        {Array.from({ length: 30 }, (_, i) => {
-                          const year = new Date().getFullYear() - i;
-                          return (
-                            <SelectItem key={year} value={year.toString()}>
-                              {year}
-                            </SelectItem>
-                          );
-                        })}
+                        {gradYears.map((year) => (
+                          <SelectItem key={year} value={year.toString()}>
+                            {year}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>

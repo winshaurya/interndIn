@@ -26,6 +26,13 @@ const Login = () => {
   const from = location.state?.from?.pathname || "/";
 
   useEffect(() => {
+    // If already authenticated, redirect to profile
+    if (isAuthenticated && user) {
+      const profileRoute = user.role === 'student' ? '/student/profile' : '/alumni/profile';
+      navigate(profileRoute, { replace: true });
+      return;
+    }
+
     if (shouldRedirect && isAuthenticated && user) {
       const homeRoute = getRoleHome(user.role);
       navigate(homeRoute, { replace: true });

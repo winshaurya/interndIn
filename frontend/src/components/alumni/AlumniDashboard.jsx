@@ -66,39 +66,6 @@ const insightBlueprint = [
   },
 ];
 
-const upcomingActions = [
-  {
-    title: "Interview sync with Ruchi",
-    time: "Tomorrow · 4:00 PM",
-    detail: "Full Stack Internship",
-  },
-  {
-    title: "Share shortlist with placement cell",
-    time: "Friday · 11:30 AM",
-    detail: "Product Analyst role",
-  },
-  {
-    title: "Feedback reminder",
-    time: "Monday · 9:00 AM",
-    detail: "7 candidates pending notes",
-  },
-];
-
-const checklistItems = [
-  {
-    title: "Update stipend band for UI/UX internship",
-    priority: "High",
-  },
-  {
-    title: "Record intro video for company profile",
-    priority: "Medium",
-  },
-  {
-    title: "Invite co-founders to reviewer workspace",
-    priority: "Low",
-  },
-];
-
 const AlumniDashboard = () => {
   const navigate = useNavigate();
 
@@ -220,7 +187,7 @@ const AlumniDashboard = () => {
               </Badge>
             </CardHeader>
             <CardContent className="space-y-4">
-              {upcomingActions.map((action) => (
+              {(stats?.upcomingActions || []).map((action) => (
                 <div key={action.title} className="rounded-lg border p-3">
                   <div className="flex items-center gap-2 text-sm font-medium">
                     <CalendarClock className="h-4 w-4 text-muted-foreground" />
@@ -238,7 +205,7 @@ const AlumniDashboard = () => {
               <CardTitle>Launch checklist</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              {checklistItems.map((item) => (
+              {(stats?.checklistItems || []).map((item) => (
                 <div key={item.title} className="flex items-start justify-between rounded-lg border p-3">
                   <div>
                     <p className="text-sm font-medium">{item.title}</p>

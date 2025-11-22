@@ -44,11 +44,6 @@ const STATIC_LOCATIONS = [
 // Utility wait
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-const ACCESS_TOKEN_KEY = "token";
-const REFRESH_TOKEN_KEY = "refreshToken";
-const TOKEN_EXP_KEY = "tokenExpiresAt";
-const USER_KEY = "user";
-
 class ApiClient {
   constructor() {
     this.baseURL = API_BASE_URL;
@@ -63,7 +58,7 @@ class ApiClient {
         method: "GET",
         skipRetry: true,
       });
-      capabilities = data?.features || {};
+      capabilities = data || {};
     } catch (_err) {
       capabilities = {};
     } finally {
@@ -73,6 +68,16 @@ class ApiClient {
   }
 
   async request(endpoint, options = {}) {
+    const {
+      method = 'GET',
+      headers = {},
+      body,
+      skipRetry = false,
+      timeoutMs = this.defaultTimeoutMs,
+      retries = this.maxRetries
+    } = options;
+
+    const url = `${this.baseURL}${endpoint}`;
 
     const config = {
       method,
@@ -80,7 +85,6 @@ class ApiClient {
         ...headers,
       },
       body,
-      // send credentials so server-set httpOnly cookies are included
       credentials: 'include',
     };
 
@@ -109,10 +113,10 @@ class ApiClient {
       const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
       try {
-            const response = await fetch(url, {
-              ...config,
-              signal: controller.signal,
-            });
+        const response = await fetch(url, {
+          ...config,
+          signal: controller.signal,
+        });
         clearTimeout(timeout);
 
         // Attempt to parse JSON; handle empty body
@@ -128,7 +132,7 @@ class ApiClient {
             (data && (data.message || data.error)) ||
             `HTTP ${response.status}`;
           // Non-retriable statuses
-            if ([400, 401, 403, 404].includes(response.status) || attempt === retries) {
+          if ([400, 401, 403, 404].includes(response.status) || attempt === retries) {
             throw new Error(message);
           } else {
             throw new Error(message);
@@ -427,6 +431,16 @@ class ApiClient {
   async getCapabilities() {
     const caps = await this.ensureCapabilities();
     return caps;
+  }
+
+  async getBranches() {
+    const caps = await this.ensureCapabilities();
+    return caps.data?.branches || [];
+  }
+
+  async getFeatures() {
+    const caps = await this.ensureCapabilities();
+    return caps.data?.features || [];
   }
 
   async getGoogleOAuthUrl(redirectTo) {

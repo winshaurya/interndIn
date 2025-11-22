@@ -21,12 +21,11 @@ import {
   GraduationCap,
   Home,
   Search,
-  Bell,
-  AlertTriangle
+  Bell
 } from "lucide-react";
 
 const Header = () => {
-  const { user, signOut, isAuthenticated, sessionWarning } = useAuth();
+  const { user, signOut, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
 
@@ -95,7 +94,7 @@ const Header = () => {
           </Link>
 
           <div className="flex items-center space-x-4">
-            <Button variant="ghost" size="sm" onClick={() => navigate('/login')}>
+            <Button variant="ghost" size="sm" onClick={() => navigate('/profile')}>
               <User className="h-5 w-5" />
             </Button>
           </div>
@@ -130,14 +129,6 @@ const Header = () => {
         </div>
 
         <div className="flex items-center space-x-4">
-          {/* Session warning */}
-          {sessionWarning && (
-            <div className="hidden md:flex items-center space-x-2 text-amber-600 bg-amber-50 px-3 py-1 rounded-md">
-              <AlertTriangle className="h-4 w-4" />
-              <span className="text-sm">Session expires soon</span>
-            </div>
-          )}
-
           {/* Role-specific quick actions */}
           {user?.role === "student" && (
             <Link to="/jobs">
