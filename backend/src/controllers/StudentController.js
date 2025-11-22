@@ -195,4 +195,74 @@ const upsertProfile = async (req, res) => {
   }
 };
 
-module.exports = { getMyProfile, upsertProfile };
+/**
+ * GET /student/dashboard
+ * Returns dashboard statistics and data for the logged-in student.
+ */
+const getDashboardStats = async (req, res) => {
+  try {
+    const userId = getUserIdFromReq(req);
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    // Get student profile
+    const { data: profile, error: profileError } = await db
+      .from('student_profiles')
+      .select('*')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (profileError) {
+      console.error("Profile fetch error:", profileError);
+      return res.status(500).json({ error: "Failed to fetch profile" });
+    }
+
+    // Get applications count
+    const { count: applicationsCount, error: applicationsError } = await db
+      .from('job_applications')
+      .select("*", { count: "exact", head: true })
+      .eq('student_id', userId);
+
+    if (applicationsError) {
+      console.error("Applications count error:", applicationsError);
+      return res.status(500).json({ error: "Failed to get applications count" });
+    }
+
+    // Get interviews count (mock for now)
+    const interviewsCount = Math.floor(applicationsCount * 0.3) || 0;
+
+    // Get offers count (mock for now)
+    const offersCount = Math.floor(applicationsCount * 0.1) || 0;
+
+    // Get bookmarks count (mock for now)
+    const bookmarksCount = Math.floor(applicationsCount * 0.2) || 0;
+
+    // Quick actions
+    const quickActions = [
+      { label: "Update Profile", to: "/student/profile" },
+      { label: "Browse Jobs", to: "/jobs" },
+      { label: "View Applications", to: "/student/applications" },
+    ];
+
+    // Timeline (mock data)
+    const timeline = [
+      { title: "Profile created", date: "Jan 06", status: "completed" },
+      { title: "First application", date: "Jan 10", status: "completed" },
+      { title: "Upcoming interview", date: "Jan 24", status: "upcoming" },
+    ];
+
+    res.json({
+      profile: profile || {},
+      applications_count: applicationsCount || 0,
+      interviews_count: interviewsCount,
+      offers_count: offersCount,
+      bookmarks_count: bookmarksCount,
+      quickActions,
+      timeline,
+    });
+  } catch (err) {
+    console.error("Dashboard stats error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+module.exports = { getMyProfile, upsertProfile, getDashboardStats };

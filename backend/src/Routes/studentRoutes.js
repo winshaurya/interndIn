@@ -57,4 +57,12 @@ router.put(
   upsertProfile
 );
 
+// GET /student/dashboard
+router.get(
+  "/dashboard",
+  authenticate,
+  roleMiddleware("student"),
+  require("../controllers/StudentController").getDashboardStats
+);
+
 module.exports = router;

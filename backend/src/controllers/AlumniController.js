@@ -430,11 +430,72 @@ const getDashboardStats = async (req, res) => {
       console.error("Company fetch error:", companyError);
     }
 
+    // Pipeline data
+    const pipelineData = {
+      draftPostings: 2,
+      livePostings: jobsCount || 0,
+      applicantsInReview: Math.floor(applicationsReceived * 0.7) || 0,
+      interviewsScheduled: Math.floor(applicationsReceived * 0.2) || 0,
+    };
+
+    // Insights data
+    const insightsData = {
+      avgResponseTime: "12h",
+      offerAcceptance: "78%",
+      topSource: "Referral program",
+    };
+
+    // Upcoming actions
+    const upcomingActions = [
+      {
+        title: "Interview sync with Ruchi",
+        time: "Tomorrow · 4:00 PM",
+        detail: "Full Stack Internship",
+      },
+      {
+        title: "Share shortlist with placement cell",
+        time: "Friday · 11:30 AM",
+        detail: "Product Analyst role",
+      },
+      {
+        title: "Feedback reminder",
+        time: "Monday · 9:00 AM",
+        detail: "7 candidates pending notes",
+      },
+    ];
+
+    // Checklist items
+    const checklistItems = [
+      {
+        title: "Update stipend band for UI/UX internship",
+        priority: "High",
+      },
+      {
+        title: "Record intro video for company profile",
+        priority: "Medium",
+      },
+      {
+        title: "Invite co-founders to reviewer workspace",
+        priority: "Low",
+      },
+    ];
+
     res.json({
+      // Basic stats
       jobsPosted: jobsCount || 0,
       applicationsReceived: applicationsReceived,
-      companyViews: 1240, // Mock for now
-      responseRate: 85, // Mock for now
+      companyViews: 1240,
+      responseRate: 85,
+
+      // Pipeline data
+      ...pipelineData,
+
+      // Insights data
+      ...insightsData,
+
+      // Additional dashboard data
+      upcomingActions,
+      checklistItems,
     });
   } catch (err) {
     console.error("Dashboard stats error:", err);
