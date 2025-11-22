@@ -1,13 +1,13 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useToast } from "@/hooks/use-toast";
-import { useAuth } from "@/contexts/AuthContext";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Loader2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { getRoleHome } from "@/lib/auth";
 
 const OAuthCallback = () => {
   const navigate = useNavigate();
-  const { toast } = useToast();
-  const { user, loading } = useAuth();
+  const [isProcessing, setIsProcessing] = useState(true);
 
   useEffect(() => {
     const handleAuthCallback = async () => {
@@ -15,104 +15,63 @@ const OAuthCallback = () => {
         const { data, error } = await supabase.auth.getSession();
 
         if (error) {
-          throw error;
+          console.error("Auth callback error:", error);
+          navigate("/login");
+          return;
         }
 
-        if (data.session?.user) {
-          // Validate email domain - only allow work emails, no Gmail
-          const email = data.session.user.email;
-          const emailDomain = email.split('@')[1]?.toLowerCase();
+        if (data?.session?.user) {
+          // Get user role from metadata or database
+          const user = data.session.user;
+          let role = user.user_metadata?.role;
 
-          // Block personal email domains
-          const blockedDomains = [
-            'gmail.com',
-            'yahoo.com',
-            'hotmail.com',
-            'outlook.com',
-            'live.com',
-            'icloud.com',
-            'aol.com',
-            'protonmail.com',
-            'mail.com'
-          ];
-
-          if (!emailDomain || blockedDomains.includes(emailDomain)) {
-            // Sign out the user and show error
-            await supabase.auth.signOut();
-            toast({
-              title: "Sign-in not allowed",
-              description: "Please use your work or educational email address. Personal email accounts (Gmail, Yahoo, etc.) are not permitted.",
-              variant: "destructive",
-            });
-            navigate("/login", { replace: true });
-            return;
+          // If role not in metadata, try to fetch from database
+          if (!role) {
+            try {
+              const { data: userData } = await supabase
+                .from('users')
+                .select('role')
+                .eq('id', user.id)
+                .single();
+              role = userData?.role;
+            } catch (err) {
+              console.error("Error fetching user role:", err);
+            }
           }
 
-          toast({
-            title: "Welcome!",
-            description: "Google sign-in completed successfully.",
-          });
+          // Default to student if no role found
+          const homeRoute = getRoleHome(role || 'student');
 
-          // Navigation will be handled by auth state change in context
-          // Just clean up the URL
-          window.history.replaceState(
-            null,
-            "",
-            window.location.pathname
-          );
+          // Successfully authenticated, redirect to appropriate dashboard
+          navigate(homeRoute, { replace: true });
         } else {
-          throw new Error("No session found");
+          // No session, redirect to login
+          navigate("/login");
         }
-      } catch (error) {
-        console.error("OAuth callback error", error);
-        toast({
-          title: "Google sign-in failed",
-          description: error.message || "Please try again.",
-          variant: "destructive",
-        });
-        navigate("/login", { replace: true });
+      } catch (err) {
+        console.error("Callback handling error:", err);
+        navigate("/login");
+      } finally {
+        setIsProcessing(false);
       }
     };
 
     handleAuthCallback();
-  }, [navigate, toast]);
+  }, [navigate]);
 
-  // Show loading while processing
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-subtle">
-        <div className="text-center space-y-4">
-          <p className="text-lg font-semibold">Signing you in with Google…</p>
-          <p className="text-sm text-muted-foreground">
-            Please wait while we secure your session.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  // If user is loaded, check if profile is complete
-  if (user) {
-    const hasProfile = user.role === 'student'
-      ? user.profile?.name && user.profile?.student_id
-      : user.role === 'alumni'
-      ? user.profile?.name && user.profile?.current_title
-      : true; // admin doesn't need profile completion
-
-    if (!hasProfile) {
-      // Redirect to profile setup for incomplete profiles
-      navigate("/profile-setup", { replace: true });
-      return null;
-    }
-
-    // Profile is complete, redirect to home
-    navigate("/", { replace: true });
-    return null;
-  }
-
-  // If no user and not loading, redirect to login
-  navigate("/login", { replace: true });
-  return null;
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+      <Card className="w-full max-w-md">
+        <CardHeader className="text-center">
+          <CardTitle className="text-xl font-semibold">Completing sign in...</CardTitle>
+          <CardDescription>Please wait while we finish setting up your account</CardDescription>
+        </CardHeader>
+        <CardContent className="flex justify-center py-8">
+          {isProcessing && <Loader2 className="h-8 w-8 animate-spin text-primary" />}
+        </CardContent>
+      </Card>
+    </div>
+  );
 };
 
 export default OAuthCallback;

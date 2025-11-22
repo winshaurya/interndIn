@@ -21,55 +21,11 @@ export const AuthProvider = ({ children }) => {
     // Get initial session
     const getInitialSession = async () => {
       try {
-        let { data: { session }, error } = await supabase.auth.getSession();
-
-        // If no session from Supabase, try to restore from localStorage tokens
-        if (!session?.user) {
-          const accessToken = localStorage.getItem('token');
-          const refreshToken = localStorage.getItem('refreshToken');
-
-          if (accessToken && refreshToken) {
-            try {
-              const { data, error: setError } = await supabase.auth.setSession({
-                access_token: accessToken,
-                refresh_token: refreshToken,
-              });
-
-              if (!setError && data.session) {
-                session = data.session;
-              } else {
-                console.error('Error restoring session from localStorage:', setError);
-                // Clear invalid tokens
-                localStorage.removeItem('token');
-                localStorage.removeItem('refreshToken');
-                localStorage.removeItem('tokenExpiresAt');
-                localStorage.removeItem('user');
-              }
-            } catch (restoreErr) {
-              console.error('Session restore error:', restoreErr);
-              // Clear invalid tokens
-              localStorage.removeItem('token');
-              localStorage.removeItem('refreshToken');
-              localStorage.removeItem('tokenExpiresAt');
-              localStorage.removeItem('user');
-            }
-          }
-        }
+        const { data: { session }, error } = await supabase.auth.getSession();
 
         if (error) {
           console.error('Error getting session:', error);
         } else if (session?.user) {
-          // persist supabase session into our apiClient/localStorage so API requests include auth tokens
-          try {
-            apiClient.persistSession({
-              accessToken: session.access_token,
-              refreshToken: session.refresh_token,
-              expiresAt: session.expires_at,
-              user: session.user,
-            });
-          } catch (e) {
-            console.error('Error persisting session to apiClient:', e);
-          }
           await loadUserData(session.user);
         }
       } catch (err) {
@@ -87,21 +43,8 @@ export const AuthProvider = ({ children }) => {
         try {
           console.log('Auth state changed:', event);
           if (session?.user) {
-            // persist session on updates as well
-            try {
-              apiClient.persistSession({
-                accessToken: session.access_token,
-                refreshToken: session.refresh_token,
-                expiresAt: session.expires_at,
-                user: session.user,
-              });
-            } catch (e) {
-              console.error('Error persisting session to apiClient on auth change:', e);
-            }
             await loadUserData(session.user);
           } else {
-            // ensure API client clears tokens when user signed out
-            try { apiClient.clearSession(); } catch (e) { /* noop */ }
             setUser(null);
           }
         } catch (err) {
@@ -166,14 +109,10 @@ export const AuthProvider = ({ children }) => {
       const name = supabaseUser.user_metadata?.name || supabaseUser.email?.split('@')[0] || 'User';
 
       // Create user profile via API
-      await apiClient.request('/auth/create-profile', {
-        method: 'POST',
-        body: JSON.stringify({
-          id: supabaseUser.id,
-          email: supabaseUser.email,
-          role,
-          name
-        })
+      await apiClient.createProfile({
+        id: supabaseUser.id,
+        email: supabaseUser.email,
+        role,
       });
 
       // Reload user data
@@ -194,19 +133,6 @@ export const AuthProvider = ({ children }) => {
 
     if (error) throw error;
 
-    // If signUp returns an active session (rare for email-confirm flows), persist it for API calls
-    if (data?.session) {
-      try {
-        apiClient.persistSession({
-          accessToken: data.session.access_token,
-          refreshToken: data.session.refresh_token,
-          expiresAt: data.session.expires_at,
-          user: data.session.user,
-        });
-      } catch (e) {
-        console.error('Error persisting session on signUp:', e);
-      }
-    }
     return data;
   };
 
@@ -218,18 +144,6 @@ export const AuthProvider = ({ children }) => {
 
     if (error) throw error;
 
-    if (data?.session) {
-      try {
-        apiClient.persistSession({
-          accessToken: data.session.access_token,
-          refreshToken: data.session.refresh_token,
-          expiresAt: data.session.expires_at,
-          user: data.session.user,
-        });
-      } catch (e) {
-        console.error('Error persisting session on signIn:', e);
-      }
-    }
     return data;
   };
 
@@ -258,8 +172,6 @@ export const AuthProvider = ({ children }) => {
   const signOut = async () => {
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
-    // Clear persisted API client session as well
-    try { apiClient.clearSession(); } catch (e) { /* noop */ }
     setUser(null);
   };
 

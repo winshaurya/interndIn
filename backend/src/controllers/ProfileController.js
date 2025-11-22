@@ -50,7 +50,6 @@ const buildProfileResponse = (userData, profileData) => {
     email: userData.email,
     role: userData.role,
     status: userData.status,
-    is_verified: userData.is_verified,
     created_at: userData.created_at,
     updated_at: userData.updated_at,
     profile: profileData ? {
@@ -72,7 +71,7 @@ const getProfile = async (req, res) => {
       });
     }
 
-    // Get user data
+    // Get user data from auth.users
     const { data: userData, error: userError } = await db
       .from('users')
       .select('*')

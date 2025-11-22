@@ -1,98 +1,240 @@
 import { useState } from "react";
-import { Search, Bell, MessageSquare, User, LifeBuoy, Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Link, useNavigate } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useAuth } from "@/contexts/AuthContext";
+import {
+  Menu,
+  User,
+  LogOut,
+  Settings,
+  Briefcase,
+  GraduationCap,
+  Home,
+  Search,
+  Bell,
+  MessageSquare
+} from "lucide-react";
 
-export default function Header() {
+const Header = () => {
+  const { user, signOut, isAuthenticated } = useAuth();
   const navigate = useNavigate();
-  const { user, logout, loading, getHomeRoute } = useAuth();
-  const [isSigningOut, setIsSigningOut] = useState(false);
-  const isAuthenticated = Boolean(user);
-  const homeRoute = getHomeRoute();
+  const [isOpen, setIsOpen] = useState(false);
 
-  const handleLogout = async () => {
-    setIsSigningOut(true);
+  const handleSignOut = async () => {
     try {
-      await logout();
-      navigate("/login", { replace: true });
-    } finally {
-      setIsSigningOut(false);
+      await signOut();
+      navigate("/");
+    } catch (error) {
+      console.error("Sign out error:", error);
     }
   };
 
-  return (
-    <header className="bg-primary text-primary-foreground p-4">
-      <div className="max-w-7xl mx-auto flex items-center justify-between">
-        {/* Logo */}
-        <div className="flex items-center space-x-2">
-          <Link to="/" className="text-2xl font-bold">interndIn</Link>
-        </div>
+  const getInitials = (name) => {
+    return name
+      ?.split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase() || "U";
+  };
 
-        {/* Search Bar */}
-        <div className="flex-1 max-w-md mx-8">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search jobs, companies..."
-              className="pl-10 bg-white/10 border-white/20 text-white placeholder:text-white/70 focus:bg-white/20"
-              disabled={loading}
-            />
-          </div>
-        </div>
+  const getUserHomeRoute = () => {
+    if (!user) return "/";
+    return user.role === "student" ? "/student" : "/alumni";
+  };
 
-        {/* Action Icons & Profile */}
-        <div className="flex items-center space-x-4">
-          <div className="hidden md:flex items-center space-x-3 text-sm">
-            <Link to="/privacy" className="flex items-center gap-1 text-white/80 hover:text-white">
-              <LifeBuoy className="h-4 w-4" />
-              Privacy
+  const navigationItems = [
+    { label: "Home", href: "/", icon: Home },
+    { label: "Jobs", href: "/jobs", icon: Search },
+  ];
+
+  const userNavigationItems = user?.role === "student" ? [
+    { label: "Dashboard", href: "/student", icon: GraduationCap },
+    { label: "Profile", href: "/student/profile", icon: User },
+    { label: "Applications", href: "/student/applications", icon: Briefcase },
+  ] : user?.role === "alumni" ? [
+    { label: "Dashboard", href: "/alumni", icon: Briefcase },
+    { label: "Profile", href: "/alumni/profile", icon: User },
+    { label: "Post Job", href: "/alumni/post-job", icon: Briefcase },
+  ] : [];
+
+  if (!isAuthenticated) {
+    return (
+      <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="container flex h-16 items-center justify-between px-4">
+          <Link to="/" className="flex items-center space-x-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+              <Briefcase className="h-5 w-5" />
+            </div>
+            <span className="text-xl font-bold">interndIn</span>
+          </Link>
+
+          <nav className="hidden md:flex items-center space-x-6">
+            {navigationItems.map((item) => (
+              <Link
+                key={item.href}
+                to={item.href}
+                className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+              >
+                {item.label}
+              </Link>
+            ))}
+          </nav>
+
+          <div className="flex items-center space-x-4">
+            <Link to="/login">
+              <Button variant="ghost" size="sm">
+                Sign In
+              </Button>
+            </Link>
+            <Link to="/signup">
+              <Button size="sm">
+                Get Started
+              </Button>
             </Link>
           </div>
-          <Button variant="ghost" size="icon" className="text-white hover:bg-white/10" title="Search">
-            <Search className="h-5 w-5" />
-          </Button>
-          <Button variant="ghost" size="icon" className="text-white hover:bg-white/10" title="Notifications">
+        </div>
+      </header>
+    );
+  }
+
+  return (
+    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <div className="container flex h-16 items-center justify-between px-4">
+        <div className="flex items-center space-x-4">
+          <Link to={getUserHomeRoute()} className="flex items-center space-x-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+              <Briefcase className="h-5 w-5" />
+            </div>
+            <span className="text-xl font-bold">interndIn</span>
+          </Link>
+
+          <nav className="hidden md:flex items-center space-x-6">
+            {userNavigationItems.map((item) => (
+              <Link
+                key={item.href}
+                to={item.href}
+                className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+              >
+                {item.label}
+              </Link>
+            ))}
+          </nav>
+        </div>
+
+        <div className="flex items-center space-x-4">
+          {/* Notifications - placeholder for future */}
+          <Button variant="ghost" size="sm" className="relative">
             <Bell className="h-5 w-5" />
+            <span className="absolute -top-1 -right-1 h-2 w-2 bg-red-500 rounded-full"></span>
           </Button>
-          <Button variant="ghost" size="icon" className="text-white hover:bg-white/10 bg-white/10" title="Messages">
+
+          {/* Messages - placeholder for future */}
+          <Button variant="ghost" size="sm">
             <MessageSquare className="h-5 w-5" />
           </Button>
 
-          {loading ? (
-            <div className="flex items-center text-white/80 text-sm">
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              Restoring session…
-            </div>
-          ) : isAuthenticated ? (
-            <div className="flex items-center space-x-2">
-              <Button variant="secondary" size="sm" className="text-primary" asChild>
-                <Link to={homeRoute}>Go to dashboard</Link>
+          {/* User Menu */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" className="relative h-10 w-10 rounded-full">
+                <Avatar className="h-10 w-10">
+                  <AvatarImage src={user?.profile?.profile_picture_url} alt={user?.name} />
+                  <AvatarFallback>{getInitials(user?.name)}</AvatarFallback>
+                </Avatar>
               </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-white hover:bg-white/10"
-                onClick={handleLogout}
-                title="Logout"
-                disabled={isSigningOut}
-              >
-                {isSigningOut ? <Loader2 className="h-5 w-5 animate-spin" /> : <User className="h-5 w-5" />}
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="w-56" align="end" forceMount>
+              <DropdownMenuLabel className="font-normal">
+                <div className="flex flex-col space-y-1">
+                  <p className="text-sm font-medium leading-none">{user?.name}</p>
+                  <p className="text-xs leading-none text-muted-foreground">{user?.email}</p>
+                  <p className="text-xs leading-none text-muted-foreground capitalize">{user?.role}</p>
+                </div>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => navigate(getUserHomeRoute())}>
+                <Home className="mr-2 h-4 w-4" />
+                Dashboard
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate(`/${user?.role}/profile`)}>
+                <User className="mr-2 h-4 w-4" />
+                Profile
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate("/settings")}>
+                <Settings className="mr-2 h-4 w-4" />
+                Settings
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleSignOut}>
+                <LogOut className="mr-2 h-4 w-4" />
+                Sign Out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* Mobile Menu */}
+          <Sheet open={isOpen} onOpenChange={setIsOpen}>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="sm" className="md:hidden">
+                <Menu className="h-5 w-5" />
               </Button>
-            </div>
-          ) : (
-            <div className="flex items-center space-x-2">
-              <Button variant="ghost" className="text-white hover:bg-white/10" asChild>
-                <Link to="/login">Sign In</Link>
-              </Button>
-              <Button variant="default" className="bg-white text-primary hover:bg-white/90" asChild>
-                <Link to="/signup">Sign Up</Link>
-              </Button>
-            </div>
-          )}
+            </SheetTrigger>
+            <SheetContent side="right" className="w-80">
+              <div className="flex flex-col space-y-4 mt-6">
+                <div className="flex items-center space-x-3 pb-4 border-b">
+                  <Avatar className="h-10 w-10">
+                    <AvatarImage src={user?.profile?.profile_picture_url} alt={user?.name} />
+                    <AvatarFallback>{getInitials(user?.name)}</AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <p className="text-sm font-medium">{user?.name}</p>
+                    <p className="text-xs text-muted-foreground">{user?.email}</p>
+                  </div>
+                </div>
+
+                {userNavigationItems.map((item) => (
+                  <Button
+                    key={item.href}
+                    variant="ghost"
+                    className="justify-start"
+                    onClick={() => {
+                      navigate(item.href);
+                      setIsOpen(false);
+                    }}
+                  >
+                    <item.icon className="mr-2 h-4 w-4" />
+                    {item.label}
+                  </Button>
+                ))}
+
+                <Button
+                  variant="ghost"
+                  className="justify-start"
+                  onClick={() => {
+                    handleSignOut();
+                    setIsOpen(false);
+                  }}
+                >
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Sign Out
+                </Button>
+              </div>
+            </SheetContent>
+          </Sheet>
         </div>
       </div>
     </header>
   );
-}
+};
+
+export default Header;

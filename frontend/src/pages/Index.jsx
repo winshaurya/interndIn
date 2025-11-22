@@ -34,7 +34,7 @@ const Index = () => {
       <Header />
 
       {/* Hero Section */}
-      <section className="py-20">
+      <section className="py-16 md:py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <div className="max-w-3xl mx-auto">
             <div className="flex items-center justify-center gap-8 mb-6">
@@ -51,7 +51,7 @@ const Index = () => {
             <p className="text-xl text-muted-foreground mb-8">
               Connect with alumni, discover exclusive job opportunities, and accelerate your career with the power of our network.
             </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <div className="flex flex-col sm:flex-row gap-4 justify-center mb-4">
               <Button variant="gradient" size="lg" asChild>
                 <Link to="/signup">
                   Join as Student
@@ -69,9 +69,9 @@ const Index = () => {
       </section>
 
       {/* Features Section */}
-      <section className="py-20 bg-background/50">
+      <section className="py-12 md:py-16 bg-background/50 -mt-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
+          <div className="text-center mb-12">
             <h2 className="text-3xl md:text-4xl font-bold mb-4">
               Why Choose SGSITS Alumni Portal?
             </h2>
@@ -104,7 +104,7 @@ const Index = () => {
       </section>
 
       {/* CTA Section */}
-      <section className="py-20">
+      <section className="py-12 md:py-16">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <Card className="shadow-elegant">
             <CardHeader className="pb-8">
@@ -138,7 +138,7 @@ const Index = () => {
       </section>
 
       {/* Footer */}
-      <footer className="bg-background border-t py-12">
+      <footer className="bg-background border-t py-8 md:py-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col md:flex-row items-center justify-between">
             <div className="flex items-center gap-3 mb-4 md:mb-0">

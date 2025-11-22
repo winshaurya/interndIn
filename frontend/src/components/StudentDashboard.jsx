@@ -68,6 +68,12 @@ export default function StudentDashboard() {
   }, [profile]);
 
   useEffect(() => {
+    if (!profileLoading && !profileError && !profile?.profile) {
+      navigate('/profile-setup');
+    }
+  }, [profileLoading, profileError, profile, navigate]);
+
+  useEffect(() => {
     if (profileError) {
       toast({
         title: "Unable to load profile",

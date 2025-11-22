@@ -30,13 +30,10 @@ EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- ===== CORE TABLES =====
 CREATE TABLE IF NOT EXISTS users (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   email CITEXT NOT NULL UNIQUE,
-  password_hash TEXT NOT NULL,
   role user_role NOT NULL DEFAULT 'student',
   status user_status NOT NULL DEFAULT 'pending',
-  is_verified BOOLEAN NOT NULL DEFAULT false,
-  last_login_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );

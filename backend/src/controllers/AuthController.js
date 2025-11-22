@@ -1,21 +1,17 @@
-// This file is deprecated and will be replaced with a clean Supabase auth implementation
-// All auth logic should be handled client-side with Supabase client
-// Backend only handles user profile creation/updates after auth
-
 const db = require("../config/db.js");
-const { ensureAppUserRecord, fetchAppUserProfile } = require("../services/userService");
+const { ensureAppUserRecord } = require("../services/userService");
 
 // Create or update user profile after Supabase auth
 const createUserProfile = async (req, res) => {
   try {
-    const { id, email, role, name } = req.body;
+    const { id, email, role } = req.body;
 
     if (!id || !email) {
       return res.status(400).json({ error: "User ID and email are required" });
     }
 
     // Ensure user record exists in our database
-    await ensureAppUserRecord({ id, email, user_metadata: { role, name } }, {
+    await ensureAppUserRecord({ id, email, user_metadata: { role } }, {
       roleHint: role || "student",
       status: "active"
     });

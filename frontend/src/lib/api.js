@@ -30,26 +30,6 @@ const API_BASE_URL = derivedBase;
 let capabilities = null;
 let capabilitiesFetched = false;
 
-// Default static fallbacks
-const STATIC_SKILLS = [
-  "JavaScript",
-  "TypeScript",
-  "React",
-  "Node.js",
-  "SQL",
-  "PostgreSQL",
-  "Python",
-  "Django",
-  "Java",
-  "C++",
-  "Data Structures",
-  "Algorithms",
-  "Cloud",
-  "DevOps",
-  "Git",
-  "Communication",
-];
-
 const STATIC_LOCATIONS = [
   "Remote",
   "Indore",
@@ -74,32 +54,6 @@ class ApiClient {
     this.baseURL = API_BASE_URL;
     this.defaultTimeoutMs = 12000;
     this.maxRetries = 2;
-    this.refreshPromise = null;
-  }
-
-  persistSession(payload = {}) {
-    if (typeof window === "undefined") return;
-    const accessToken = payload.accessToken || payload.token;
-    if (accessToken) {
-      localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
-    }
-    if (payload.refreshToken) {
-      localStorage.setItem(REFRESH_TOKEN_KEY, payload.refreshToken);
-    }
-    if (payload.expiresAt) {
-      localStorage.setItem(TOKEN_EXP_KEY, String(payload.expiresAt));
-    }
-    if (payload.user) {
-      localStorage.setItem(USER_KEY, JSON.stringify(payload.user));
-    }
-  }
-
-  clearSession() {
-    if (typeof window === "undefined") return;
-    localStorage.removeItem(ACCESS_TOKEN_KEY);
-    localStorage.removeItem(REFRESH_TOKEN_KEY);
-    localStorage.removeItem(TOKEN_EXP_KEY);
-    localStorage.removeItem(USER_KEY);
   }
 
   async ensureCapabilities() {
@@ -119,20 +73,6 @@ class ApiClient {
   }
 
   async request(endpoint, options = {}) {
-    const url = `${this.baseURL}${endpoint}`;
-    const {
-      method = "GET",
-      body,
-      headers = {},
-      timeoutMs = this.defaultTimeoutMs,
-      retries = this.maxRetries,
-      skipRetry = false,
-      skipAuthRefresh = false,
-    } = options;
-
-    if (!skipAuthRefresh) {
-      await this.ensureFreshToken();
-    }
 
     const config = {
       method,
@@ -149,10 +89,15 @@ class ApiClient {
       config.headers["Content-Type"] = "application/json";
     }
 
-    // Add auth token if available
-    const token = typeof window !== "undefined"
-      ? localStorage.getItem(ACCESS_TOKEN_KEY)
-      : null;
+    // Add auth token from Supabase session
+    let token = null;
+    try {
+      const { supabase } = await import("@/lib/supabase");
+      const { data: { session } } = await supabase.auth.getSession();
+      token = session?.access_token;
+    } catch (e) {
+      // ignore
+    }
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -216,81 +161,11 @@ class ApiClient {
   }
 
   // ================= Auth endpoints =================
-  async login(credentials) {
-    const response = await this.request("/auth/login", {
-      method: "POST",
-      body: JSON.stringify(credentials),
-    });
-    this.persistSession(response);
-    return response;
-  }
-
-  async signup(userData) {
-    // Unified route
-    return this.request("/auth/signup", {
+  async createProfile(userData) {
+    return this.request("/auth/create-profile", {
       method: "POST",
       body: JSON.stringify(userData),
     });
-  }
-
-  async resetPassword(email) {
-    return this.request("/auth/forgot-password", {
-      method: "POST",
-      body: JSON.stringify({ email }),
-    });
-  }
-
-  async logout() {
-    const refreshToken = typeof window !== "undefined"
-      ? localStorage.getItem(REFRESH_TOKEN_KEY)
-      : null;
-    try {
-      await this.request("/auth/logout", {
-        method: "POST",
-        body: refreshToken ? JSON.stringify({ refreshToken }) : undefined,
-        skipAuthRefresh: true,
-      });
-    } catch (e) {
-      // Ignore network logout failure; client side will still clear
-      console.warn("Logout API failed", e.message);
-    } finally {
-      this.clearSession();
-    }
-  }
-
-  async refreshSession(refreshToken) {
-    if (!refreshToken) return null;
-    const response = await this.request("/auth/refresh", {
-      method: "POST",
-      body: JSON.stringify({ refreshToken }),
-      skipAuthRefresh: true,
-      skipRetry: true,
-    });
-    this.persistSession(response);
-    return response;
-  }
-
-  async ensureFreshToken() {
-    if (typeof window === "undefined") return null;
-    const expiresAt = Number(localStorage.getItem(TOKEN_EXP_KEY));
-    const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
-
-    if (!expiresAt || !refreshToken) {
-      return null;
-    }
-
-    const secondsRemaining = expiresAt - Math.floor(Date.now() / 1000);
-    if (secondsRemaining > 60) {
-      return null;
-    }
-
-    if (!this.refreshPromise) {
-      this.refreshPromise = this.refreshSession(refreshToken).finally(() => {
-        this.refreshPromise = null;
-      });
-    }
-
-    return this.refreshPromise;
   }
 
   // ================= Student endpoints =================

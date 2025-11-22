@@ -1,12 +1,9 @@
-const bcrypt = require('bcrypt');
 const db = require('../config/db');
-
-const PLACEHOLDER_SECRET = process.env.SUPABASE_OAUTH_PLACEHOLDER || '__supabase_oauth_placeholder__';
 
 const fetchAppUserProfile = async (userId) => {
   const { data, error } = await db
     .from('users')
-    .select('id, email, role, status, is_verified, last_login_at')
+    .select('id, email, role, status, created_at, updated_at')
     .eq('id', userId)
     .maybeSingle();
 
@@ -28,18 +25,11 @@ const ensureAppUserRecord = async (supabaseUser, options = {}) => {
     return existing;
   }
 
-  const hashedPassword = await bcrypt.hash(
-    options.password || `${PLACEHOLDER_SECRET}-${supabaseUser.id}`,
-    10
-  );
-
   const insertPayload = {
     id: supabaseUser.id,
     email: supabaseUser.email,
-    password_hash: hashedPassword,
     role: roleHint,
-    status: options.status || 'pending',
-    is_verified: Boolean(supabaseUser.email_confirmed_at),
+    status: options.status || 'active',
   };
 
   const { data: inserted, error: insertError } = await db
@@ -59,17 +49,13 @@ const buildUserResponse = (supabaseUser, appUser) => ({
   id: supabaseUser.id,
   email: supabaseUser.email,
   role: (appUser?.role || supabaseUser.user_metadata?.role || 'student').toLowerCase(),
-  status: appUser?.status || 'pending',
-  is_verified: appUser?.is_verified ?? Boolean(supabaseUser.email_confirmed_at),
-  last_login_at: appUser?.last_login_at || supabaseUser.last_sign_in_at,
+  status: appUser?.status || 'active',
+  created_at: appUser?.created_at || supabaseUser.created_at,
+  updated_at: appUser?.updated_at || supabaseUser.updated_at,
 });
 
 const updateLastLogin = async (userId) => {
-  if (!userId) return;
-  await db
-    .from('users')
-    .update({ last_login_at: new Date().toISOString() })
-    .eq('id', userId);
+  // Not needed with Supabase auth
 };
 
 module.exports = {

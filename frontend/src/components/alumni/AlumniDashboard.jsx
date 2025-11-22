@@ -1,5 +1,7 @@
 import { Building2, Users, Briefcase, TrendingUp, FilePlus2, Rocket, UserCheck, CalendarClock } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
+import { useEffect } from "react";
 import { apiClient } from "@/lib/api";
 import { MetricCard } from "./MetricCard";
 import { ApplicationChart } from "./ApplicationChart";
@@ -98,10 +100,23 @@ const checklistItems = [
 ];
 
 const AlumniDashboard = () => {
+  const navigate = useNavigate();
+
+  const { data: profileResponse, isLoading: profileLoading } = useQuery({
+    queryKey: ["alumni-profile"],
+    queryFn: () => apiClient.getAlumniProfile(),
+  });
+
   const { data: stats, isLoading } = useQuery({
     queryKey: ["alumni-dashboard"],
     queryFn: () => apiClient.request("/alumni/dashboard"),
   });
+
+  useEffect(() => {
+    if (!profileLoading && !profileResponse?.data?.profile) {
+      navigate('/profile-setup');
+    }
+  }, [profileLoading, profileResponse, navigate]);
 
   const pipeline = pipelineBlueprint.map((stage) => ({
     ...stage,
