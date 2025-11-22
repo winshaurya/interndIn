@@ -74,7 +74,6 @@ class SessionManager {
       const { data: { session }, error } = await this.supabase.auth.getSession();
       return error ? null : session;
     } catch (error) {
-      console.error('Error getting session data:', error);
       return null;
     }
   }
