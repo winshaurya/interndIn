@@ -21,7 +21,41 @@ export const AuthProvider = ({ children }) => {
     // Get initial session
     const getInitialSession = async () => {
       try {
-        const { data: { session }, error } = await supabase.auth.getSession();
+        let { data: { session }, error } = await supabase.auth.getSession();
+
+        // If no session from Supabase, try to restore from localStorage tokens
+        if (!session?.user) {
+          const accessToken = localStorage.getItem('token');
+          const refreshToken = localStorage.getItem('refreshToken');
+
+          if (accessToken && refreshToken) {
+            try {
+              const { data, error: setError } = await supabase.auth.setSession({
+                access_token: accessToken,
+                refresh_token: refreshToken,
+              });
+
+              if (!setError && data.session) {
+                session = data.session;
+              } else {
+                console.error('Error restoring session from localStorage:', setError);
+                // Clear invalid tokens
+                localStorage.removeItem('token');
+                localStorage.removeItem('refreshToken');
+                localStorage.removeItem('tokenExpiresAt');
+                localStorage.removeItem('user');
+              }
+            } catch (restoreErr) {
+              console.error('Session restore error:', restoreErr);
+              // Clear invalid tokens
+              localStorage.removeItem('token');
+              localStorage.removeItem('refreshToken');
+              localStorage.removeItem('tokenExpiresAt');
+              localStorage.removeItem('user');
+            }
+          }
+        }
+
         if (error) {
           console.error('Error getting session:', error);
         } else if (session?.user) {
