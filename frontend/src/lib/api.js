@@ -93,15 +93,8 @@ class ApiClient {
       config.headers["Content-Type"] = "application/json";
     }
 
-    // Add auth token from Supabase session
-    let token = null;
-    try {
-      const { supabase } = await import("@/lib/supabase");
-      const { data: { session } } = await supabase.auth.getSession();
-      token = session?.access_token;
-    } catch (e) {
-      // ignore
-    }
+    // Add JWT token from localStorage
+    const token = localStorage.getItem('accessToken');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -219,6 +212,7 @@ class ApiClient {
       ...(profileData.desiredRoles ? { desired_roles: profileData.desiredRoles } : {}),
       ...(profileData.preferredLocations ? { preferred_locations: profileData.preferredLocations } : {}),
       ...(profileData.workMode ? { work_mode: profileData.workMode } : {}),
+      ...(profileData.academics ? { academics: profileData.academics } : {}),
     };
 
     const res = await this.request("/student/profile", {
@@ -330,16 +324,84 @@ class ApiClient {
     return this.request(`/job/view-applicants/${jobId}`);
   }
 
-  // ================= Alumni endpoints =================
+  async getCurrentUser() {
+    return this.request("/auth/profile");
+  }
   async getAlumniProfile() {
-    return this.request("/alumni/profile");
+    const res = await this.request("/alumni/profile");
+    // normalize profile keys to camelCase for frontend
+    try {
+      const profile = res?.data?.profile;
+      if (profile) {
+        const normalized = {
+          ...profile,
+          currentTitle: profile.current_title ?? profile.currentTitle,
+          companyName: profile.company_name ?? profile.companyName,
+          gradYear: profile.grad_year ?? profile.gradYear,
+          linkedinUrl: profile.linkedin_url ?? profile.linkedinUrl,
+          githubUrl: profile.github_url ?? profile.githubUrl,
+          portfolioUrl: profile.portfolio_url ?? profile.portfolioUrl,
+          companyWebsite: profile.company_website ?? profile.companyWebsite,
+          dateOfBirth: profile.date_of_birth ?? profile.dateOfBirth,
+          experienceYears: profile.experience_years ?? profile.experienceYears,
+          profilePictureUrl: profile.profile_picture_url ?? profile.profilePictureUrl,
+          skills: Array.isArray(profile.skills) ? profile.skills : (profile.skills ? String(profile.skills).split(',').map(s=>s.trim()) : []),
+        };
+        return { ...res, data: { ...res.data, profile: normalized } };
+      }
+    } catch (e) {
+      // ignore normalization errors
+    }
+    return res;
   }
 
   async updateAlumniProfile(profileData) {
-    return this.request("/alumni/profile", {
+    // Map frontend camelCase keys to backend snake_case expectations
+    const payload = {
+      ...(profileData.name ? { name: profileData.name } : {}),
+      ...(profileData.phone ? { phone: profileData.phone } : {}),
+      ...(profileData.currentTitle ? { current_title: profileData.currentTitle } : {}),
+      ...(profileData.companyName ? { company_name: profileData.companyName } : {}),
+      ...(profileData.gradYear ? { grad_year: profileData.gradYear } : {}),
+      ...(profileData.bio ? { bio: profileData.bio } : {}),
+      ...(profileData.skills ? { skills: profileData.skills } : {}),
+      ...(profileData.experienceYears ? { experience_years: profileData.experienceYears } : {}),
+      ...(profileData.linkedinUrl ? { linkedin_url: profileData.linkedinUrl } : {}),
+      ...(profileData.githubUrl ? { github_url: profileData.githubUrl } : {}),
+      ...(profileData.portfolioUrl ? { portfolio_url: profileData.portfolioUrl } : {}),
+      ...(profileData.companyWebsite ? { company_website: profileData.companyWebsite } : {}),
+      ...(profileData.dateOfBirth ? { date_of_birth: profileData.dateOfBirth } : {}),
+      ...(profileData.address ? { address: profileData.address } : {}),
+    };
+
+    const res = await this.request("/alumni/profile", {
       method: "PUT",
-      body: JSON.stringify(profileData),
+      body: JSON.stringify(payload),
     });
+
+    // normalize and return similar to getAlumniProfile
+    try {
+      const profile = res?.data?.profile;
+      if (profile) {
+        const normalized = {
+          ...profile,
+          currentTitle: profile.current_title ?? profile.currentTitle,
+          companyName: profile.company_name ?? profile.companyName,
+          gradYear: profile.grad_year ?? profile.gradYear,
+          linkedinUrl: profile.linkedin_url ?? profile.linkedinUrl,
+          githubUrl: profile.github_url ?? profile.githubUrl,
+          portfolioUrl: profile.portfolio_url ?? profile.portfolioUrl,
+          companyWebsite: profile.company_website ?? profile.companyWebsite,
+          dateOfBirth: profile.date_of_birth ?? profile.dateOfBirth,
+          experienceYears: profile.experience_years ?? profile.experienceYears,
+          profilePictureUrl: profile.profile_picture_url ?? profile.profilePictureUrl,
+          skills: Array.isArray(profile.skills) ? profile.skills : (profile.skills ? String(profile.skills).split(',').map(s=>s.trim()) : []),
+        };
+        return { ...res, data: { ...res.data, profile: normalized } };
+      }
+    } catch (e) {}
+
+    return res;
   }
 
   async getAlumniJobs() {
@@ -422,7 +484,7 @@ class ApiClient {
   // Helper method for auth headers (without Content-Type for FormData)
   getAuthHeaders() {
     const token = typeof window !== "undefined"
-      ? localStorage.getItem("token")
+      ? localStorage.getItem("accessToken")
       : null;
     return token ? { Authorization: `Bearer ${token}` } : {};
   }

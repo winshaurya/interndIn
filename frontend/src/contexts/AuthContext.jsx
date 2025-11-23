@@ -1,7 +1,5 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
-import { apiClient } from "@/lib/api";
-import { getRoleHome, determineRedirectAfterAuth } from "@/lib/auth";
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { apiClient } from '@/lib/api';
 
 const AuthContext = createContext();
 
@@ -16,166 +14,114 @@ export const useAuth = () => {
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
+  // Initialize auth state on mount
   useEffect(() => {
-    let mounted = true;
-
-    // Initialize auth state
     const initializeAuth = async () => {
-      try {
-        const { data: { session }, error } = await supabase.auth.getSession();
-
-        if (!mounted) return;
-
-        if (error) {
-          console.error('Session error:', error);
-          setUser(null);
-        } else if (session?.user) {
-          await loadUserSession(session.user);
-        } else {
-          setUser(null);
+      const token = localStorage.getItem('accessToken');
+      if (token) {
+        try {
+          // Verify token by fetching profile
+          const response = await apiClient.get('/auth/profile');
+          setUser(response.data.user);
+          setIsAuthenticated(true);
+        } catch (error) {
+          console.error('Token verification failed:', error);
+          localStorage.removeItem('accessToken');
+          localStorage.removeItem('refreshToken');
         }
-      } catch (err) {
-        console.error('Auth initialization error:', err);
-        if (mounted) setUser(null);
-      } finally {
-        if (mounted) setIsLoading(false);
       }
+      setIsLoading(false);
     };
 
     initializeAuth();
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (!mounted) return;
-
-        try {
-          if (event === 'SIGNED_OUT') {
-            setUser(null);
-            return;
-          }
-
-          if (event === 'SIGNED_IN' && session?.user) {
-            await loadUserSession(session.user);
-          }
-
-          if (event === 'TOKEN_REFRESHED' && session?.user) {
-            // Update session data but don't reload user data
-            if (user) {
-              setUser(prev => prev ? { ...prev, session } : null);
-            }
-          }
-        } catch (err) {
-          console.error('Auth state change error:', err);
-          setUser(null);
-        }
-      }
-    );
-
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-    };
   }, []);
 
-  const loadUserSession = async (supabaseUser) => {
+  const login = async (email, password) => {
     try {
-      // Get session data from our backend
-      const sessionData = await apiClient.request('/auth/me');
+      const response = await apiClient.post('/auth/login', { email, password });
 
-      setUser({
-        id: supabaseUser.id,
-        email: supabaseUser.email,
-        ...sessionData.user,
-        profile: sessionData.profile,
-        isNewUser: sessionData.isNewUser,
-        session: supabaseUser
-      });
+      const { user: userData, tokens } = response.data;
+
+      // Store tokens
+      localStorage.setItem('accessToken', tokens.accessToken);
+      localStorage.setItem('refreshToken', tokens.refreshToken);
+
+      // Update state
+      setUser(userData);
+      setIsAuthenticated(true);
+
+      return userData;
     } catch (error) {
-      console.error('Failed to load user session:', error);
-      setUser(null);
+      console.error('Login error:', error);
+      throw new Error(error.response?.data?.message || 'Login failed');
     }
   };
 
-  const signUp = async (email, password, metadata = {}) => {
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: metadata
-      }
-    });
-
-    if (error) throw error;
-    return data;
+  const register = async (userData) => {
+    try {
+      const response = await apiClient.post('/auth/register', userData);
+      return response.data;
+    } catch (error) {
+      console.error('Registration error:', error);
+      throw new Error(error.response?.data?.message || 'Registration failed');
+    }
   };
 
-  const signIn = async (email, password) => {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password
-    });
+  const logout = () => {
+    // Clear tokens
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('refreshToken');
 
-    if (error) throw error;
-    return data;
-  };
-
-  const signInWithGoogle = async (role = 'student') => {
-    const { data, error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback?role=${role}`,
-        queryParams: {
-          access_type: 'offline',
-          prompt: 'consent',
-        }
-      }
-    });
-
-    if (error) throw error;
-    return data;
-  };
-
-  const signOut = async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) throw error;
+    // Clear state
     setUser(null);
+    setIsAuthenticated(false);
   };
 
-  const resetPassword = async (email) => {
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`,
-    });
-    if (error) throw error;
+  const refreshAccessToken = async () => {
+    try {
+      const refreshToken = localStorage.getItem('refreshToken');
+      if (!refreshToken) {
+        throw new Error('No refresh token available');
+      }
+
+      const response = await api.post('/auth/refresh', { refreshToken });
+
+      const { tokens } = response.data;
+
+      // Update stored tokens
+      localStorage.setItem('accessToken', tokens.accessToken);
+      localStorage.setItem('refreshToken', tokens.refreshToken);
+
+      return tokens.accessToken;
+    } catch (error) {
+      console.error('Token refresh error:', error);
+      logout(); // Clear auth state if refresh fails
+      throw error;
+    }
   };
 
-  const updatePassword = async (newPassword) => {
-    const { error } = await supabase.auth.updateUser({
-      password: newPassword
-    });
-    if (error) throw error;
-  };
-
-  const getRedirectPath = () => {
-    if (!user) return '/login';
-    return determineRedirectAfterAuth(user, user.isNewUser);
+  const updateProfile = async (profileData) => {
+    try {
+      const response = await api.put('/profile', profileData);
+      setUser(prev => ({ ...prev, ...response.data.user }));
+      return response.data;
+    } catch (error) {
+      console.error('Profile update error:', error);
+      throw new Error(error.response?.data?.message || 'Profile update failed');
+    }
   };
 
   const value = {
     user,
     isLoading,
-    signUp,
-    signIn,
-    signInWithGoogle,
-    signOut,
-    logout: signOut,
-    resetPassword,
-    updatePassword,
-    isAuthenticated: !!user,
-    role: user?.role || null,
-    getHomeRoute: () => getRoleHome(user?.role),
-    getRedirectPath,
+    isAuthenticated,
+    login,
+    register,
+    logout,
+    refreshAccessToken,
+    updateProfile,
   };
 
   return (
@@ -184,5 +130,3 @@ export const AuthProvider = ({ children }) => {
     </AuthContext.Provider>
   );
 };
-
-export default AuthProvider;

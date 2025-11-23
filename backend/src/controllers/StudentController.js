@@ -60,7 +60,7 @@ const upsertProfile = async (req, res) => {
     const userId = getUserIdFromReq(req);
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
-    const { name, studentId, branch, gradYear, skills, resumeUrl, email, phone, dateOfBirth, currentYear, cgpa, achievements, experiences, desiredRoles, preferredLocations, workMode } =
+    const { name, studentId, branch, gradYear, skills, resumeUrl, email, phone, dateOfBirth, currentYear, cgpa, achievements, experiences, desiredRoles, preferredLocations, workMode, academics } =
       req.body || {};
 
     const { data: existing, error: existingError } = await db
@@ -92,6 +92,7 @@ const upsertProfile = async (req, res) => {
       ...(desiredRoles !== undefined && { desired_roles: desiredRoles }),
       ...(preferredLocations !== undefined && { preferred_locations: preferredLocations }),
       ...(workMode !== undefined && { work_mode: workMode }),
+      ...(academics !== undefined && { academics }),
     };
 
     if (existing) {
@@ -220,7 +221,7 @@ const getDashboardStats = async (req, res) => {
     const { count: applicationsCount, error: applicationsError } = await db
       .from('job_applications')
       .select("*", { count: "exact", head: true })
-      .eq('student_id', userId);
+      .eq('user_id', userId);
 
     if (applicationsError) {
       console.error("Applications count error:", applicationsError);

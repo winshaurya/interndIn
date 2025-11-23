@@ -1,218 +1,306 @@
-const db = require("../config/db.js");
-const { createClient } = require('@supabase/supabase-js');
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
+const bcrypt = require('bcryptjs');
+const db = require('../config/db');
+const { generateTokens } = require('../config/jwt');
 
-/**
- * Middleware to verify Supabase JWT and extract user info
- */
-const verifySupabaseToken = async (req, res, next) => {
-  try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ error: 'No authorization token provided' });
-    }
-
-    const token = authHeader.substring(7); // Remove 'Bearer '
-
-    // Verify token with Supabase
-    const { data: { user }, error } = await supabase.auth.getUser(token);
-
-    if (error || !user) {
-      return res.status(401).json({ error: 'Invalid or expired token' });
-    }
-
-    req.user = user;
-    next();
-  } catch (error) {
-    console.error('Token verification error:', error);
-    res.status(500).json({ error: 'Authentication failed' });
-  }
+// Helper function to hash passwords
+const hashPassword = async (password) => {
+  const saltRounds = 12;
+  return await bcrypt.hash(password, saltRounds);
 };
 
-/**
- * Ensure user exists in our database
- */
-const ensureUserExists = async (supabaseUser, role = 'student') => {
+// Helper function to verify passwords
+const verifyPassword = async (password, hashedPassword) => {
+  return await bcrypt.compare(password, hashedPassword);
+};
+
+// Register a new user (student or alumni)
+const register = async (req, res) => {
   try {
-    // Check if user exists
+    const { email, password, role, firstName, lastName, ...profileData } = req.body;
+
+    // Validate required fields
+    if (!email || !password || !role || !firstName || !lastName) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email, password, role, firstName, and lastName are required'
+      });
+    }
+
+    // Validate role
+    if (!['student', 'alumni'].includes(role)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Role must be either student or alumni'
+      });
+    }
+
+    // Check if user already exists
     const { data: existingUser, error: checkError } = await db
       .from('users')
-      .select('*')
-      .eq('id', supabaseUser.id)
+      .select('id, email')
+      .eq('email', email)
       .single();
-
-    if (checkError && checkError.code !== 'PGRST116') {
-      throw checkError;
-    }
 
     if (existingUser) {
-      return existingUser;
+      return res.status(409).json({
+        success: false,
+        message: 'User with this email already exists'
+      });
     }
 
-    // Create user record
-    const { data: newUser, error: insertError } = await db
+    // Hash password
+    const hashedPassword = await hashPassword(password);
+
+    // Create user
+    const { data: newUser, error: userError } = await db
       .from('users')
       .insert({
-        id: supabaseUser.id,
-        email: supabaseUser.email,
-        role: role,
-        status: 'active'
+        email,
+        password_hash: hashedPassword,
+        role,
+        first_name: firstName,
+        last_name: lastName,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       })
-      .select()
+      .select('id, email, role, first_name, last_name')
       .single();
 
-    if (insertError) {
-      throw insertError;
+    if (userError) {
+      console.error('User creation error:', userError);
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to create user account'
+      });
     }
 
     // Create profile based on role
     if (role === 'student') {
-      await db.from('student_profiles').insert({
-        user_id: supabaseUser.id,
-        name: supabaseUser.user_metadata?.name || supabaseUser.email?.split('@')[0] || 'Student',
-        email: supabaseUser.email,
-        student_id: `STU${Date.now()}`,
-        branch: 'Computer Science',
-        grad_year: new Date().getFullYear() + 4,
-      });
+      const { error: profileError } = await db
+        .from('student_profiles')
+        .insert({
+          user_id: newUser.id,
+          ...profileData,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        });
+
+      if (profileError) {
+        console.error('Student profile creation error:', profileError);
+        // Don't fail the registration, just log the error
+      }
     } else if (role === 'alumni') {
-      await db.from('alumni_profiles').insert({
-        user_id: supabaseUser.id,
-        name: supabaseUser.user_metadata?.name || supabaseUser.email?.split('@')[0] || 'Alumni',
-        grad_year: new Date().getFullYear() - 2,
+      const { error: profileError } = await db
+        .from('alumni_profiles')
+        .insert({
+          user_id: newUser.id,
+          ...profileData,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        });
+
+      if (profileError) {
+        console.error('Alumni profile creation error:', profileError);
+        // Don't fail the registration, just log the error
+      }
+    }
+
+    // Generate tokens
+    const tokens = generateTokens(newUser);
+
+    // Store refresh token (you might want to store this in a database for better security)
+    // For now, we'll just return both tokens
+
+    res.status(201).json({
+      success: true,
+      message: 'User registered successfully',
+      user: {
+        id: newUser.id,
+        email: newUser.email,
+        role: newUser.role,
+        firstName: newUser.first_name,
+        lastName: newUser.last_name
+      },
+      tokens
+    });
+
+  } catch (error) {
+    console.error('Registration error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error during registration'
+    });
+  }
+};
+
+// Login user
+const login = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email and password are required'
       });
     }
 
-    return newUser;
+    // Find user by email
+    const { data: user, error: userError } = await db
+      .from('users')
+      .select('id, email, password_hash, role, first_name, last_name')
+      .eq('email', email)
+      .single();
+
+    if (userError || !user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid email or password'
+      });
+    }
+
+    // Verify password
+    const isPasswordValid = await verifyPassword(password, user.password_hash);
+    if (!isPasswordValid) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid email or password'
+      });
+    }
+
+    // Generate tokens
+    const tokens = generateTokens(user);
+
+    res.json({
+      success: true,
+      message: 'Login successful',
+      user: {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        firstName: user.first_name,
+        lastName: user.last_name
+      },
+      tokens
+    });
+
   } catch (error) {
-    console.error('Error ensuring user exists:', error);
-    throw error;
+    console.error('Login error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error during login'
+    });
   }
 };
 
-/**
- * Get current user session with profile
- */
-const getSession = async (req, res) => {
+// Get current user profile
+const getProfile = async (req, res) => {
   try {
-    const supabaseUser = req.user;
-    if (!supabaseUser) {
-      return res.status(401).json({ error: 'Not authenticated' });
+    const userId = req.user.userId;
+
+    const { data: user, error: userError } = await db
+      .from('users')
+      .select('id, email, role, first_name, last_name, created_at')
+      .eq('id', userId)
+      .single();
+
+    if (userError || !user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
     }
 
-    // Ensure user exists in our DB
-    const dbUser = await ensureUserExists(supabaseUser);
-
-    // Get profile
-    let profile = null;
-    if (dbUser.role === 'student') {
-      const { data } = await db
+    // Get profile data based on role
+    let profileData = null;
+    if (user.role === 'student') {
+      const { data: profile } = await db
         .from('student_profiles')
         .select('*')
-        .eq('user_id', supabaseUser.id)
-        .maybeSingle();
-      profile = data;
-    } else if (dbUser.role === 'alumni') {
-      const { data } = await db
+        .eq('user_id', userId)
+        .single();
+      profileData = profile;
+    } else if (user.role === 'alumni') {
+      const { data: profile } = await db
         .from('alumni_profiles')
         .select('*')
-        .eq('user_id', supabaseUser.id)
-        .maybeSingle();
-      profile = data;
+        .eq('user_id', userId)
+        .single();
+      profileData = profile;
     }
 
     res.json({
+      success: true,
       user: {
-        id: supabaseUser.id,
-        email: supabaseUser.email,
-        role: dbUser.role,
-        name: profile?.name || supabaseUser.user_metadata?.name,
-      },
-      profile,
-      isNewUser: !profile || Object.keys(profile).length === 0
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        firstName: user.first_name,
+        lastName: user.last_name,
+        createdAt: user.created_at,
+        profile: profileData
+      }
     });
+
   } catch (error) {
-    console.error('Get session error:', error);
-    res.status(500).json({ error: 'Failed to get session' });
+    console.error('Get profile error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
   }
 };
 
-/**
- * Handle OAuth callback and user creation
- */
-const handleOAuthCallback = async (req, res) => {
+// Refresh access token
+const refreshToken = async (req, res) => {
   try {
-    const { code, role = 'student' } = req.body;
+    const { refreshToken: token } = req.body;
 
-    if (!code) {
-      return res.status(400).json({ error: 'Authorization code required' });
+    if (!token) {
+      return res.status(400).json({
+        success: false,
+        message: 'Refresh token is required'
+      });
     }
 
-    // Exchange code for session
-    const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+    // Verify refresh token
+    const { verifyRefreshToken } = require('../config/jwt');
+    const decoded = verifyRefreshToken(token);
 
-    if (error || !data.session) {
-      return res.status(400).json({ error: 'Failed to exchange code for session' });
+    // Get user data
+    const { data: user, error: userError } = await db
+      .from('users')
+      .select('id, email, role, first_name, last_name')
+      .eq('id', decoded.userId)
+      .single();
+
+    if (userError || !user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid refresh token'
+      });
     }
 
-    // Ensure user exists
-    const dbUser = await ensureUserExists(data.session.user, role);
-
-    // Get profile
-    let profile = null;
-    if (dbUser.role === 'student') {
-      const { data: profileData } = await db
-        .from('student_profiles')
-        .select('*')
-        .eq('user_id', data.session.user.id)
-        .maybeSingle();
-      profile = profileData;
-    } else if (dbUser.role === 'alumni') {
-      const { data: profileData } = await db
-        .from('alumni_profiles')
-        .select('*')
-        .eq('user_id', data.session.user.id)
-        .maybeSingle();
-      profile = profileData;
-    }
+    // Generate new tokens
+    const tokens = generateTokens(user);
 
     res.json({
-      session: {
-        access_token: data.session.access_token,
-        refresh_token: data.session.refresh_token,
-        expires_at: data.session.expires_at,
-      },
-      user: {
-        id: data.session.user.id,
-        email: data.session.user.email,
-        role: dbUser.role,
-        name: profile?.name || data.session.user.user_metadata?.name,
-      },
-      profile,
-      isNewUser: !profile || Object.keys(profile).length === 0
+      success: true,
+      tokens
     });
-  } catch (error) {
-    console.error('OAuth callback error:', error);
-    res.status(500).json({ error: 'OAuth callback failed' });
-  }
-};
 
-/**
- * Sign out user
- */
-const signOut = async (req, res) => {
-  try {
-    // Note: Frontend handles Supabase sign out directly
-    res.json({ success: true });
   } catch (error) {
-    res.status(500).json({ error: 'Sign out failed' });
+    console.error('Refresh token error:', error);
+    res.status(401).json({
+      success: false,
+      message: 'Invalid refresh token'
+    });
   }
 };
 
 module.exports = {
-  verifySupabaseToken,
-  getSession,
-  handleOAuthCallback,
-  signOut,
-  ensureUserExists,
+  register,
+  login,
+  getProfile,
+  refreshToken
 };

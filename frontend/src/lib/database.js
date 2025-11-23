@@ -113,6 +113,17 @@ export const getCompany = async (alumniId) => {
   return data
 }
 
+export const getCompanyById = async (companyId) => {
+  const { data, error } = await supabase
+    .from('companies')
+    .select('*')
+    .eq('id', companyId)
+    .single()
+
+  if (error) throw error
+  return data
+}
+
 export const createCompany = async (companyData) => {
   const { data, error } = await supabase
     .from('companies')
@@ -192,13 +203,15 @@ export const updateJob = async (jobId, updates) => {
   return data
 }
 
-export const deleteJob = async (jobId) => {
-  const { error } = await supabase
+export const getJobsByCompany = async (companyId) => {
+  const { data, error } = await supabase
     .from('jobs')
-    .delete()
-    .eq('id', jobId)
+    .select('*')
+    .eq('company_id', companyId)
+    .order('created_at', { ascending: false })
 
   if (error) throw error
+  return data
 }
 
 export const getAllJobs = async () => {
@@ -303,6 +316,16 @@ export const getJobApplicants = async (jobId) => {
   return data
 }
 
+export const getApplicantCountForJob = async (jobId) => {
+  const { count, error } = await supabase
+    .from('job_applications')
+    .select('*', { count: 'exact', head: true })
+    .eq('job_id', jobId)
+
+  if (error) throw error
+  return count
+}
+
 export const withdrawApplication = async (jobId, userId) => {
   const { error } = await supabase
     .from('job_applications')
@@ -358,7 +381,23 @@ export const rejectConnectionRequest = async (connectionId) => {
 export const getConnections = async (userId) => {
   const { data, error } = await supabase
     .from('connections')
-    .select('*')
+    .select(`
+      *,
+      sender:users!sender_id (
+        id,
+        email,
+        role,
+        student_profiles (name),
+        alumni_profiles (name)
+      ),
+      receiver:users!receiver_id (
+        id,
+        email,
+        role,
+        student_profiles (name),
+        alumni_profiles (name)
+      )
+    `)
     .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
     .order('created_at', { ascending: false })
 
@@ -387,6 +426,17 @@ export const getMessages = async (connectionId) => {
 
   if (error) throw error
   return data
+}
+
+export const getUnreadMessagesCount = async (userId) => {
+  const { count, error } = await supabase
+    .from('messages')
+    .select('*', { count: 'exact', head: true })
+    .eq('receiver_id', userId)
+    .eq('is_read', false)
+
+  if (error) throw error
+  return count
 }
 
 export const markMessageAsRead = async (messageId) => {
@@ -434,6 +484,15 @@ export const createNotification = async (notificationData) => {
 
   if (error) throw error
   return data
+}
+
+export const deleteNotification = async (notificationId) => {
+  const { error } = await supabase
+    .from('notifications')
+    .delete()
+    .eq('id', notificationId)
+
+  if (error) throw error
 }
 
 // ==================== STORAGE OPERATIONS ====================

@@ -1,51 +1,75 @@
-// src/middleware/authMiddleware.js
-const db = require("../config/db");
-const { ensureAppUserRecord } = require("../services/userService");
+const { verifyAccessToken } = require('../config/jwt');
+const db = require('../config/db');
 
-const authenticate = async (req, res, next) => {
-  // Expect a Bearer token in Authorization header. Access tokens are returned to client
-  // and should be sent via `Authorization: Bearer <token>` by the frontend.
-  const token = req.headers.authorization?.split(" ")[1];
-  if (!token) {
-    return res.status(401).json({ error: "Missing Bearer token" });
-  }
-
+// Middleware to authenticate JWT tokens
+const authenticate = (req, res, next) => {
   try {
-    // Create a session-scoped Supabase client using the provided access token
-    const sessionClient = db.getSessionClient(token);
-    if (!sessionClient) {
-      return res.status(401).json({ error: "Invalid Supabase session" });
+    // Get token from Authorization header
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({
+        success: false,
+        message: 'Access token required'
+      });
     }
 
-    const { data, error } = await sessionClient.auth.getUser();
-    if (error || !data?.user) {
-      return res.status(401).json({ error: "Invalid Supabase session" });
-    }
+    const token = authHeader.substring(7); // Remove 'Bearer ' prefix
 
-    const supabaseUser = data.user;
-    const appUser = await ensureAppUserRecord(supabaseUser);
+    // Verify the token
+    const decoded = verifyAccessToken(token);
 
+    // Attach user info to request
     req.user = {
-      ...appUser,
-      id: supabaseUser.id,
-      userId: supabaseUser.id,
-      email: supabaseUser.email,
-      supabaseUser,
-      accessToken: token,
+      userId: decoded.userId,
+      email: decoded.email,
+      role: decoded.role,
+      id: decoded.id || decoded.userId // for backward compatibility
     };
 
     next();
-  } catch (err) {
-    console.error("Auth middleware error:", err);
-    return res.status(401).json({ error: "Unauthorized" });
+  } catch (error) {
+    console.error('Auth middleware error:', error.message);
+    return res.status(401).json({
+      success: false,
+      message: 'Invalid or expired token'
+    });
   }
 };
 
+// Middleware to check if user is admin
 const isAdmin = (req, res, next) => {
-  if (req.user?.role !== "admin") {
-    return res.status(403).json({ error: "Forbidden: Admins only" });
+  if (!req.user || req.user.role !== 'admin') {
+    return res.status(403).json({
+      success: false,
+      message: 'Admin access required'
+    });
   }
   next();
 };
 
-module.exports = { authenticate, isAdmin };
+// Optional authentication (doesn't fail if no token)
+const optionalAuth = (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.substring(7);
+      const decoded = verifyAccessToken(token);
+      req.user = {
+        userId: decoded.userId,
+        email: decoded.email,
+        role: decoded.role,
+        id: decoded.id || decoded.userId
+      };
+    }
+  } catch (error) {
+    // Silently ignore auth errors for optional auth
+    console.log('Optional auth failed:', error.message);
+  }
+  next();
+};
+
+module.exports = {
+  authenticate,
+  isAdmin,
+  optionalAuth
+};
