@@ -50,7 +50,7 @@ const getProfile = async (req, res) => {
 
 /**
  * PUT /alumni/profile
- * Partial update of alumni profile & company info (if fields provided)
+ * Upsert alumni profile & company info (create if not exists, update if exists)
  */
 const upsertProfile = async (req, res) => {
   try {
@@ -59,61 +59,121 @@ const upsertProfile = async (req, res) => {
 
     const {
       name,
+      phone,
+      currentTitle,
+      companyName,
+      gradYear,
+      bio,
+      skills,
+      experienceYears,
+      linkedinUrl,
+      githubUrl,
+      portfolioUrl,
+      companyWebsite,
+      dateOfBirth,
+      address,
       website,
       industry,
       company_size,
       about,
       linkedin, // document_url
-      currentTitle,
-      gradYear,
     } = req.body;
 
-    // Update alumni profile fields if provided
-    const alumniUpdate = {};
-    if (gradYear !== undefined) alumniUpdate.grad_year = gradYear;
-    if (currentTitle !== undefined) alumniUpdate.current_title = currentTitle;
-    if (name !== undefined) alumniUpdate.name = name;
-
-    if (Object.keys(alumniUpdate).length) {
-      const { error: alumniError } = await db
-        .from("alumni_profiles")
-        .update(alumniUpdate)
-        .eq("user_id", userId);
-
-      if (alumniError) {
-        console.error("Alumni update error:", alumniError);
-        return res.status(500).json({ error: "Failed to update alumni profile" });
-      }
-    }
-
-    // Need alumni profile id for company operations
-    const { data: profile, error: fetchProfileError } = await db
+    // Check if alumni profile exists
+    const { data: existingProfile, error: fetchProfileError } = await db
       .from("alumni_profiles")
       .select("id")
       .eq("user_id", userId)
       .maybeSingle();
 
-    if (fetchProfileError || !profile) {
-      if (fetchProfileError) console.error("Fetch profile error:", fetchProfileError);
-      // Continue but cannot update company without profile
+    if (fetchProfileError) {
+      console.error("Fetch profile error:", fetchProfileError);
+      return res.status(500).json({ error: "Failed to fetch profile" });
+    }
+
+    let profileId;
+
+    if (existingProfile) {
+      // Update existing profile
+      const alumniUpdate = {};
+      if (name !== undefined) alumniUpdate.name = name;
+      if (phone !== undefined) alumniUpdate.phone = phone;
+      if (currentTitle !== undefined) alumniUpdate.current_title = currentTitle;
+      if (companyName !== undefined) alumniUpdate.company_name = companyName;
+      if (gradYear !== undefined) alumniUpdate.grad_year = gradYear;
+      if (bio !== undefined) alumniUpdate.bio = bio;
+      if (skills !== undefined) alumniUpdate.skills = Array.isArray(skills) ? skills : (skills ? String(skills).split(',').map(s=>s.trim()) : []);
+      if (experienceYears !== undefined) alumniUpdate.experience_years = experienceYears;
+      if (linkedinUrl !== undefined) alumniUpdate.linkedin_url = linkedinUrl;
+      if (githubUrl !== undefined) alumniUpdate.github_url = githubUrl;
+      if (portfolioUrl !== undefined) alumniUpdate.portfolio_url = portfolioUrl;
+      if (companyWebsite !== undefined) alumniUpdate.company_website = companyWebsite;
+      if (dateOfBirth !== undefined) alumniUpdate.date_of_birth = dateOfBirth;
+      if (address !== undefined) alumniUpdate.address = address;
+
+      if (Object.keys(alumniUpdate).length) {
+        const { error: alumniError } = await db
+          .from("alumni_profiles")
+          .update(alumniUpdate)
+          .eq("user_id", userId);
+
+        if (alumniError) {
+          console.error("Alumni update error:", alumniError);
+          return res.status(500).json({ error: "Failed to update alumni profile" });
+        }
+      }
+      profileId = existingProfile.id;
     } else {
-      // Upsert company record by alumni_id
+      // Create new profile
+      const alumniInsert = {
+        user_id: userId,
+        name: name || null,
+        phone: phone || null,
+        current_title: currentTitle || null,
+        company_name: companyName || null,
+        grad_year: gradYear || null,
+        bio: bio || null,
+        skills: Array.isArray(skills) ? skills : (skills ? String(skills).split(',').map(s=>s.trim()) : []),
+        experience_years: experienceYears || null,
+        linkedin_url: linkedinUrl || null,
+        github_url: githubUrl || null,
+        portfolio_url: portfolioUrl || null,
+        company_website: companyWebsite || null,
+        date_of_birth: dateOfBirth || null,
+        address: address || null,
+      };
+
+      const { data: newProfile, error: insertError } = await db
+        .from("alumni_profiles")
+        .insert(alumniInsert)
+        .select("id")
+        .single();
+
+      if (insertError) {
+        console.error("Alumni insert error:", insertError);
+        return res.status(500).json({ error: "Failed to create alumni profile" });
+      }
+      profileId = newProfile.id;
+    }
+
+    // Handle company info if provided
+    if (profileId && (website || industry || company_size || about || linkedin || companyName)) {
       const companyUpdate = {};
       if (website !== undefined) companyUpdate.website = website;
       if (industry !== undefined) companyUpdate.industry = industry;
       if (company_size !== undefined) companyUpdate.company_size = company_size;
       if (about !== undefined) companyUpdate.about = about;
       if (linkedin !== undefined) companyUpdate.document_url = linkedin;
-      if (name !== undefined) companyUpdate.name = name;
+      if (companyName !== undefined) companyUpdate.name = companyName;
 
       if (Object.keys(companyUpdate).length) {
         companyUpdate.updated_at = new Date().toISOString();
 
-        // Check existing
+        // Check existing company
         const { data: existingCompany, error: existingCompanyErr } = await db
           .from("companies")
           .select("id")
-          .eq("alumni_id", profile.id)
+          .eq("alumni_id", profileId)
           .maybeSingle();
 
         if (existingCompanyErr) {
@@ -122,7 +182,7 @@ const upsertProfile = async (req, res) => {
           const { error: companyError } = await db
             .from("companies")
             .update(companyUpdate)
-            .eq("alumni_id", profile.id);
+            .eq("alumni_id", profileId);
 
           if (companyError) {
             console.error("Company update error:", companyError);
@@ -133,7 +193,7 @@ const upsertProfile = async (req, res) => {
             .from("companies")
             .insert({
               ...companyUpdate,
-              alumni_id: profile.id,
+              alumni_id: profileId,
               created_at: new Date().toISOString(),
             });
 
@@ -145,7 +205,7 @@ const upsertProfile = async (req, res) => {
       }
     }
 
-    return res.json({ message: "Alumni profile updated", success: true });
+    return res.json({ message: existingProfile ? "Alumni profile updated" : "Alumni profile created", success: true });
   } catch (err) {
     console.error("upsertProfile error:", err);
     return res.status(500).json({ error: "Server error" });
@@ -154,77 +214,83 @@ const upsertProfile = async (req, res) => {
 
 /**
  * POST /alumni/company
- * Explicit endpoint to create/update company data.
+ * Create or update company for logged-in alumni
  */
 const createOrUpdateCompany = async (req, res) => {
   try {
     const userId = req.user?.id || req.user?.userId;
     if (!userId) return res.status(401).json({ error: "Unauthenticated" });
 
-    const {
-      name,
-      website,
-      industry,
-      company_size,
-      about,
-      document_url,
-      linkedin,
-    } = req.body;
-
-    // Fetch alumni profile
+    // Get alumni profile first
     const { data: profile, error: profileError } = await db
       .from("alumni_profiles")
       .select("id")
       .eq("user_id", userId)
       .maybeSingle();
 
-    if (profileError || !profile) {
+    if (profileError) {
       console.error("Profile fetch error:", profileError);
-      return res.status(400).json({ error: "Alumni profile not found" });
+      return res.status(500).json({ error: "Failed to fetch profile" });
     }
 
-    const payload = {
-      name,
-      website,
-      industry,
-      company_size,
-      about,
-      document_url: document_url || linkedin,
-      alumni_id: profile.id,
-      updated_at: new Date().toISOString(),
-    };
+    if (!profile) {
+      return res.status(400).json({ error: "Alumni profile not found. Complete your profile first." });
+    }
 
-    // Check existing company
-    const { data: existing, error: existingErr } = await db
+    const { name, website, industry, company_size, about, document_url } = req.body;
+
+    // Check if company exists
+    const { data: existingCompany, error: existingError } = await db
       .from("companies")
       .select("id")
       .eq("alumni_id", profile.id)
       .maybeSingle();
 
-    if (existingErr) {
-      console.error("Existing company check error:", existingErr);
-      return res.status(500).json({ error: "Failed to check existing company" });
+    if (existingError) {
+      console.error("Company existence check error:", existingError);
+      return res.status(500).json({ error: "Failed to check company existence" });
     }
 
-    if (existing) {
-      const { error: updateErr } = await db
+    const companyData = {
+      name: name || null,
+      website: website || null,
+      industry: industry || null,
+      company_size: company_size || null,
+      about: about || null,
+      document_url: document_url || null,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (existingCompany) {
+      // Update existing company
+      const { error: updateError } = await db
         .from("companies")
-        .update(payload)
+        .update(companyData)
         .eq("alumni_id", profile.id);
 
-      if (updateErr) {
-        console.error("Company update error:", updateErr);
+      if (updateError) {
+        console.error("Company update error:", updateError);
         return res.status(500).json({ error: "Failed to update company" });
       }
-      return res.json({ message: "Company updated", success: true });
+
+      return res.json({ message: "Company updated successfully", success: true });
     } else {
-      payload.created_at = new Date().toISOString();
-      const { error: insertErr } = await db.from("companies").insert(payload);
-      if (insertErr) {
-        console.error("Company insert error:", insertErr);
+      // Create new company
+      const { error: insertError } = await db
+        .from("companies")
+        .insert({
+          ...companyData,
+          alumni_id: profile.id,
+          status: 'pending',
+          created_at: new Date().toISOString(),
+        });
+
+      if (insertError) {
+        console.error("Company insert error:", insertError);
         return res.status(500).json({ error: "Failed to create company" });
       }
-      return res.json({ message: "Company created", success: true });
+
+      return res.json({ message: "Company created successfully", success: true });
     }
   } catch (err) {
     console.error("createOrUpdateCompany error:", err);
@@ -405,18 +471,50 @@ const getDashboardStats = async (req, res) => {
     }
 
     let applicationsReceived = 0;
+    let chartData = [];
+    let topApplicants = [];
     if (jobs && jobs.length > 0) {
       const jobIds = jobs.map((j) => j.id);
-      const { count: appCount, error: appError } = await db
+      const { data: appData, error: appError } = await db
         .from("job_applications")
-        .select("*", { count: "exact", head: true })
+        .select(`
+          job_id,
+          user_id,
+          applied_at,
+          student_profiles(name, branch, grad_year, skills, academics)
+        `)
         .in("job_id", jobIds);
 
       if (appError) {
-        console.error("Applications count error:", appError);
-        return res.status(500).json({ error: "Failed to get applications count" });
+        console.error("Applications data error:", appError);
+      } else {
+        // Count applications per job
+        const appCountMap = {};
+        appData.forEach(app => {
+          appCountMap[app.job_id] = (appCountMap[app.job_id] || 0) + 1;
+        });
+        applicationsReceived = appData.length;
+
+        // Create chart data
+        chartData = jobs.map(job => ({
+          name: job.job_title.length > 10 ? job.job_title.substring(0, 10) + '...' : job.job_title,
+          applications: appCountMap[job.id] || 0,
+          jobId: job.id
+        }));
+
+        // Get top applicants (by recent application, limit 5)
+        topApplicants = appData
+          .sort((a, b) => new Date(b.applied_at) - new Date(a.applied_at))
+          .slice(0, 5)
+          .map(app => ({
+            id: app.user_id,
+            name: app.student_profiles?.name || 'Unknown',
+            degree: app.student_profiles?.branch || 'N/A',
+            skills: app.student_profiles?.skills || [],
+            cgpa: app.student_profiles?.academics?.[0]?.gpa || 'N/A',
+            appliedAt: app.applied_at
+          }));
       }
-      applicationsReceived = appCount || 0;
     }
 
     // Company analytics placeholder
@@ -493,12 +591,90 @@ const getDashboardStats = async (req, res) => {
       // Insights data
       ...insightsData,
 
+      // Chart data
+      chartData,
+
+      // Top applicants
+      topApplicants,
+
       // Additional dashboard data
       upcomingActions,
       checklistItems,
     });
   } catch (err) {
     console.error("Dashboard stats error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+/**
+ * GET /alumni/profile/:userId
+ * Returns public profile information for an alumni (viewable by students)
+ */
+const getPublicProfile = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const currentUserId = req.user?.id || req.user?.userId;
+
+    if (!currentUserId) return res.status(401).json({ error: "Unauthorized" });
+
+    // Get alumni profile
+    const { data: profile, error: profileError } = await db
+      .from("alumni_profiles")
+      .select(`
+        id, name, current_title, company_name, grad_year, skills, experience_years,
+        linkedin_url, github_url, portfolio_url, company_website, bio
+      `)
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (profileError) {
+      console.error("Public profile fetch error:", profileError);
+      return res.status(500).json({ error: "Failed to fetch profile" });
+    }
+
+    if (!profile) {
+      return res.status(404).json({ error: "Profile not found" });
+    }
+
+    // Get user info
+    const { data: user, error: userError } = await db
+      .from("users")
+      .select("role")
+      .eq("id", userId)
+      .maybeSingle();
+
+    if (userError || !user || user.role !== "alumni") {
+      return res.status(404).json({ error: "Profile not found" });
+    }
+
+    // Get company info
+    const { data: company, error: companyError } = await db
+      .from("companies")
+      .select("name, website, industry, company_size, about")
+      .eq("alumni_id", profile.id)
+      .maybeSingle();
+
+    // Check if current user is connected to this alumni
+    const { data: connection, error: connectionError } = await db
+      .from("connections")
+      .select("status")
+      .or(`and(sender_id.eq.${currentUserId},receiver_id.eq.${userId}),and(sender_id.eq.${userId},receiver_id.eq.${currentUserId})`)
+      .eq("status", "accepted")
+      .maybeSingle();
+
+    const isConnected = !!connection;
+
+    return res.json({
+      profile: {
+        ...profile,
+        company,
+        isConnected,
+        userId,
+      }
+    });
+  } catch (err) {
+    console.error("Public profile error:", err);
     res.status(500).json({ error: "Server error" });
   }
 };
@@ -513,4 +689,5 @@ module.exports = {
   completeProfile,
   updateProfile,
   getDashboardStats,
+  getPublicProfile,
 };

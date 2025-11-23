@@ -1,4 +1,4 @@
-import { LayoutDashboard, Briefcase, BookmarkCheck, FileText, UserRound, Building2, Users, ShieldCheck, Settings2, BarChart3, Mail } from "lucide-react";
+import { LayoutDashboard, Briefcase, BookmarkCheck, FileText, UserRound, Building2, Users, ShieldCheck, Settings2, BarChart3, Mail, MessageSquare } from "lucide-react";
 
 export const navigation = {
   student: [
@@ -8,6 +8,7 @@ export const navigation = {
         { title: "Dashboard", to: "/student", icon: LayoutDashboard },
         { title: "Jobs", to: "/jobs", icon: Briefcase },
         { title: "Applications", to: "/student/applications", icon: FileText },
+        { title: "Messages", to: "/student/messages", icon: MessageSquare },
         { title: "Profile", to: "/student/profile", icon: UserRound },
       ],
     },
@@ -25,6 +26,7 @@ export const navigation = {
         { title: "Overview", to: "/alumni", icon: LayoutDashboard },
         { title: "Postings", to: "/alumni/postings", icon: Briefcase },
         { title: "Applicants", to: "/alumni/applications", icon: Users },
+        { title: "Messages", to: "/alumni/messages", icon: MessageSquare },
         { title: "Company", to: "/alumni/company-profile", icon: Building2 },
       ],
     },

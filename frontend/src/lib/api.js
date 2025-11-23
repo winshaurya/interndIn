@@ -165,6 +165,20 @@ class ApiClient {
     });
   }
 
+  async requestPasswordReset(email) {
+    return this.request("/auth/request-password-reset", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    });
+  }
+
+  async resetPassword(token, newPassword) {
+    return this.request("/auth/reset-password", {
+      method: "POST",
+      body: JSON.stringify({ token, newPassword }),
+    });
+  }
+
   // ================= Student endpoints =================
   async getStudentProfile() {
     const res = await this.request("/student/profile");
@@ -191,6 +205,10 @@ class ApiClient {
       // ignore normalization errors
     }
     return res;
+  }
+
+  async getStudentDashboard() {
+    return this.request("/student/dashboard");
   }
 
   async updateStudentProfile(profileData) {
@@ -514,6 +532,61 @@ class ApiClient {
     return this.request(`/auth/oauth/google${query ? `?${query}` : ""}`, {
       method: "GET",
       skipAuthRefresh: true,
+    });
+  }
+
+  // Messaging methods
+  async getConnections() {
+    return this.request("/connections");
+  }
+
+  async getConversation(connectionId) {
+    return this.request(`/messages/${connectionId}`);
+  }
+
+  async sendMessage(receiverId, content) {
+    return this.request("/messages", {
+      method: "POST",
+      body: JSON.stringify({ receiver_id: receiverId, content }),
+    });
+  }
+
+  async getUnreadMessages() {
+    return this.request("/messages/unread");
+  }
+
+  async markMessageRead(messageId) {
+    return this.request(`/messages/${messageId}/read`, {
+      method: "PUT",
+    });
+  }
+
+  // Profile viewing methods
+  async getStudentPublicProfile(userId) {
+    return this.request(`/student/profile/${userId}`);
+  }
+
+  async getAlumniPublicProfile(userId) {
+    return this.request(`/alumni/profile/${userId}`);
+  }
+
+  // Connection methods
+  async sendConnectionRequest(receiverId) {
+    return this.request("/connections/request", {
+      method: "POST",
+      body: JSON.stringify({ receiver_id: receiverId }),
+    });
+  }
+
+  async acceptConnectionRequest(connectionId) {
+    return this.request(`/connections/${connectionId}/accept`, {
+      method: "PUT",
+    });
+  }
+
+  async rejectConnectionRequest(connectionId) {
+    return this.request(`/connections/${connectionId}/reject`, {
+      method: "PUT",
     });
   }
 }

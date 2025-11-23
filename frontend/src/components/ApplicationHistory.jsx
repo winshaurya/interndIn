@@ -19,7 +19,7 @@ export default function ApplicationHistory() {
     queryFn: () => apiClient.getAppliedJobs(),
   });
 
-  const applications = applicationsResponse?.data || [];
+  const applications = applicationsResponse?.applications || [];
 
   if (isLoading) return <DataState type="loading" />;
   if (isError) return <DataState type="error" message="Failed to load applications" />;

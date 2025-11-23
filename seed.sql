@@ -7,63 +7,52 @@ WITH
 
 -- Admin
 admin_user AS (
-  INSERT INTO users (email, password_hash, role, status, is_verified)
+  INSERT INTO users (email, role, status)
   VALUES (
     'admin@sgsits.ac.in',
-    '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
     'admin',
-    'approved',
-    true
+    'approved'
   )
   ON CONFLICT (email) DO UPDATE
   SET role = EXCLUDED.role,
       status = EXCLUDED.status,
-      is_verified = EXCLUDED.is_verified,
       updated_at = now()
   RETURNING id
 ),
 
 -- Student 1
 student1_user AS (
-  INSERT INTO users (email, password_hash, role, status, is_verified)
+  INSERT INTO users (email, role, status)
   VALUES (
     'rahul.sharma@student.sgsits.ac.in',
-    '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
     'student',
-    'active',
-    true
+    'active'
   )
   ON CONFLICT (email) DO UPDATE
-  SET status = EXCLUDED.status,
-      is_verified = EXCLUDED.is_verified
+  SET status = EXCLUDED.status
   RETURNING id
 ),
 
 -- Student 2
 student2_user AS (
-  INSERT INTO users (email, password_hash, role, status, is_verified)
+  INSERT INTO users (email, role, status)
   VALUES (
     'meera.patel@student.sgsits.ac.in',
-    '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
     'student',
-    'active',
-    true
+    'active'
   )
   ON CONFLICT (email) DO UPDATE
-  SET status = EXCLUDED.status,
-      is_verified = EXCLUDED.is_verified
+  SET status = EXCLUDED.status
   RETURNING id
 ),
 
 -- Alumni 1
 alumni1_user AS (
-  INSERT INTO users (email, password_hash, role, status, is_verified)
+  INSERT INTO users (email, role, status)
   VALUES (
     'ananya.rao@alumni.sgsits.ac.in',
-    '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
     'alumni',
-    'approved',
-    true
+    'approved'
   )
   ON CONFLICT (email) DO UPDATE
   SET status = EXCLUDED.status,
@@ -71,6 +60,17 @@ alumni1_user AS (
   RETURNING id
 ),
 
+-- Alumni 2
+alumni2_user AS (
+  INSERT INTO users (email, role, status)
+  VALUES (
+    'rohit.verma@alumni.sgsits.ac.in',
+    'alumni',
+    'approved'
+  )
+  ON CONFLICT (email) DO UPDATE
+  SET status = EXCLUDED.status
+  RETURNING id
 -- Alumni 2
 alumni2_user AS (
   INSERT INTO users (email, password_hash, role, status, is_verified)
@@ -373,16 +373,3 @@ notifications1 AS (
 notifications2 AS (
   INSERT INTO notifications (user_id, type, title, message, metadata)
   SELECT
-    sp2.user_id,
-    'application',
-    'Application submitted',
-    'Your application for Machine Learning Engineer has been received.',
-    jsonb_build_object('job','Machine Learning Engineer')
-  FROM student2_profile sp2
-  RETURNING id
-)
-
--- Final SELECT to execute the entire WITH block
-SELECT 1;
-
-COMMIT;

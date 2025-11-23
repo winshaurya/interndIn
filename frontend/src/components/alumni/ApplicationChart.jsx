@@ -3,16 +3,20 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { Eye } from "lucide-react";
-
-const data = [
-  { name: "Post A", applications: 15 },
-  { name: "Post B", applications: 23 },
-  { name: "Post C", applications: 18 },
-  { name: "Post D", applications: 20 },
-];
+import { useQuery } from "@tanstack/react-query";
+import { apiClient } from "@/lib/api";
 
 export function ApplicationChart() {
   const navigate = useNavigate();
+
+  const { data: stats } = useQuery({
+    queryKey: ["alumni-dashboard"],
+    queryFn: () => apiClient.request("/alumni/dashboard"),
+  });
+
+  const data = stats?.chartData || [
+    { name: "No data", applications: 0 },
+  ];
 
   return (
     <Card className="gradient-card shadow-glow">

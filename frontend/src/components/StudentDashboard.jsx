@@ -66,10 +66,10 @@ export default function StudentDashboard() {
   }, [profile]);
 
   useEffect(() => {
-    if (!profileLoading && !profileError && !profile?.profile) {
+    if (!profileLoading && !profileError && !profileResponse?.profile) {
       navigate('/profile-setup');
     }
-  }, [profileLoading, profileError, profile, navigate]);
+  }, [profileLoading, profileError, profileResponse, navigate]);
 
   useEffect(() => {
     if (profileError) {

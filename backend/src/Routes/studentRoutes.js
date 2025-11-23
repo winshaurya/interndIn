@@ -1,6 +1,6 @@
 // src/routes/studentRoutes.js
 const express = require("express");
-const { getMyProfile, upsertProfile } = require("../controllers/StudentController");
+const { getMyProfile, upsertProfile, getPublicProfile } = require("../controllers/StudentController");
 const { authenticate } = require("../middleware/authMiddleware");
 const roleMiddleware = require("../middleware/roleMiddleware");
 const validate = require("../middleware/validationMiddleware");
@@ -55,6 +55,13 @@ router.put(
   roleMiddleware("student"),    // remove or widen roles if needed
   validate(putProfileSchema),
   upsertProfile
+);
+
+// GET /student/profile/:userId (public profile view)
+router.get(
+  "/profile/:userId",
+  authenticate,  // any authenticated user can view
+  getPublicProfile
 );
 
 // GET /student/dashboard

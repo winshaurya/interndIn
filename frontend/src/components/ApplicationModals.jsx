@@ -239,8 +239,6 @@ export default function ApplicationModal({ isOpen, onClose, jobDetails }) {
       setUploadedFiles({ resume: null, portfolio: null, additionalDocs: [] });
       setUploadedFileUrls({ resume: null, portfolio: null, additionalDocs: [] });
       setUploadingFiles({ resume: false, portfolio: false, additionalDocs: [] });
-      setUploadedFileUrls({ resume: null, portfolio: null, additionalDocs: [] });
-      setUploadingFiles({ resume: false, portfolio: false, additionalDocs: [] });
     } catch (error) {
       toast({ 
         variant: "destructive", 

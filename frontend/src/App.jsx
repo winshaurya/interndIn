@@ -2,7 +2,7 @@ import React from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { Toaster as AppToaster } from "@/components/ui/toaster";
+import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { AuthProvider } from '@/contexts/AuthContext';
 
@@ -23,12 +23,18 @@ import Jobs from "./pages/Jobs";
 import JobDetails from "./pages/JobDetails";
 import Login from "./pages/auth/Login";
 import SignUp from "./pages/auth/SignUp";
+import AlumniLogin from "./pages/auth/AlumniLogin";
+import AlumniSignUp from "./pages/auth/AlumniSignUp";
+import StudentLogin from "./pages/auth/StudentLogin";
+import StudentSignUp from "./pages/auth/StudentSignUp";
 import ResetPassword from "./pages/auth/ResetPassword";
 import OAuthCallback from "./pages/auth/OAuthCallback";
 import StudentDashboard from "./components/StudentDashboard";
 import StudentProfile from "./pages/Profile/StudentProfile";
 import StudentApplications from "./pages/student/Applications";
 import StudentBookmarks from "./pages/student/Bookmarks";
+import MessagesPage from "./pages/MessagesPage";
+import PublicProfilePage from "./pages/PublicProfilePage";
 
 /* ------------------ Alumni module imports ------------------ */
 import { AlumniLayout } from "@/components/layout/AlumniLayout";
@@ -54,12 +60,13 @@ const queryClient = new QueryClient();
 
 export default function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <TooltipProvider>
-          <AppToaster />
-          <Sonner />
-          <BrowserRouter>
+    <>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            <BrowserRouter>
               <Routes>
                 {/* ---------- Student / public routes ---------- */}
                 <Route path="/" element={<Index />} />
@@ -84,6 +91,38 @@ export default function App() {
                   }
                 />
                 <Route
+                  path="/alumni/login"
+                  element={
+                    <PublicRoute>
+                      <AlumniLogin />
+                    </PublicRoute>
+                  }
+                />
+                <Route
+                  path="/alumni/signup"
+                  element={
+                    <PublicRoute>
+                      <AlumniSignUp />
+                    </PublicRoute>
+                  }
+                />
+                <Route
+                  path="/student/login"
+                  element={
+                    <PublicRoute>
+                      <StudentLogin />
+                    </PublicRoute>
+                  }
+                />
+                <Route
+                  path="/student/signup"
+                  element={
+                    <PublicRoute>
+                      <StudentSignUp />
+                    </PublicRoute>
+                  }
+                />
+                <Route
                   path="/reset-password"
                   element={
                     <PublicRoute>
@@ -97,6 +136,10 @@ export default function App() {
                 <Route path="/privacy" element={<Privacy />} />
                 <Route path="/profile-setup" element={<ProtectedRoute><ProfileSetup /></ProtectedRoute>} />
 
+                {/* Public profile viewing */}
+                <Route path="/student/profile/:userId" element={<ProtectedRoute><PublicProfilePage /></ProtectedRoute>} />
+                <Route path="/alumni/profile/:userId" element={<ProtectedRoute><PublicProfilePage /></ProtectedRoute>} />
+
                 {/* Student workspace */}
                 <Route
                   path="/student"
@@ -109,6 +152,7 @@ export default function App() {
                   <Route index element={<StudentDashboard />} />
                   <Route path="profile" element={<StudentProfile />} />
                   <Route path="applications" element={<StudentApplications />} />
+                  <Route path="messages" element={<MessagesPage />} />
                   <Route path="bookmarks" element={<StudentBookmarks />} />
                 </Route>
                 <Route path="/dashboard" element={<Navigate to="/student" replace />} />
@@ -135,6 +179,7 @@ export default function App() {
                   <Route path="edit-company-profile" element={<EditCompanyProfilePage />} />
                   <Route path="profile" element={<EditMyProfilePage />} />
                   <Route path="applications" element={<JobApplicantsPage />} />
+                  <Route path="messages" element={<MessagesPage />} />
                 </Route>
 
                 {/* ---------------- Catch-all for everything ---------------- */}
@@ -144,5 +189,6 @@ export default function App() {
           </TooltipProvider>
         </AuthProvider>
       </QueryClientProvider>
+    </>
   );
 }

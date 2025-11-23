@@ -6,16 +6,31 @@ exports.applyJob = async (req, res) => {
   const userId = req.user?.userId ?? req.user?.id;
   if (!userId) return res.status(401).json({ error: "Unauthenticated user." });
 
-  const job_id = req.body.job_id || req.body.jobId;
-  const resume_url = req.body.resume_url || null;
-  if (!job_id) return res.status(400).json({ error: "job_id is required" });
+  const {
+    jobId,
+    job_id,
+    firstName,
+    lastName,
+    email,
+    phone,
+    coverLetter,
+    resumeUrl,
+    portfolioUrl,
+    customAnswers,
+    expectedSalary,
+    availableStartDate,
+    ndaAccepted
+  } = req.body;
+
+  const finalJobId = job_id || jobId;
+  if (!finalJobId) return res.status(400).json({ error: "jobId is required" });
 
   try {
     // 1) Ensure the job exists
     const { data: job, error: jobError } = await db
       .from('jobs')
       .select('id')
-      .eq('id', job_id)
+      .eq('id', finalJobId)
       .maybeSingle();
 
     if (jobError) {
@@ -29,7 +44,7 @@ exports.applyJob = async (req, res) => {
     const { count: currentCount, error: countError } = await db
       .from('job_applications')
       .select('*', { count: 'exact', head: true })
-      .eq('job_id', job_id);
+      .eq('job_id', finalJobId);
 
     if (countError) {
       console.error('Count error:', countError);
@@ -44,7 +59,7 @@ exports.applyJob = async (req, res) => {
     const { data: already, error: alreadyError } = await db
       .from('job_applications')
       .select('*')
-      .eq('job_id', job_id)
+      .eq('job_id', finalJobId)
       .eq('user_id', userId)
       .maybeSingle();
 
@@ -55,15 +70,29 @@ exports.applyJob = async (req, res) => {
 
     if (already) return res.status(400).json({ error: "Already applied for this job" });
 
-    // 4) Insert the application
+    // 4) Insert the application with all provided fields
+    const applicationData = {
+      job_id: finalJobId,
+      user_id: userId,
+      resume_url: resumeUrl || null,
+      applied_at: new Date().toISOString(),
+    };
+
+    // Add optional fields if provided
+    if (firstName) applicationData.first_name = firstName;
+    if (lastName) applicationData.last_name = lastName;
+    if (email) applicationData.email = email;
+    if (phone) applicationData.phone = phone;
+    if (coverLetter) applicationData.cover_letter = coverLetter;
+    if (portfolioUrl) applicationData.portfolio_url = portfolioUrl;
+    if (customAnswers) applicationData.custom_answers = customAnswers;
+    if (expectedSalary) applicationData.expected_salary = expectedSalary;
+    if (availableStartDate) applicationData.available_start_date = availableStartDate;
+    if (ndaAccepted !== undefined) applicationData.nda_accepted = ndaAccepted;
+
     const { error: insertError } = await db
       .from('job_applications')
-      .insert({
-        job_id,
-        user_id: userId,
-        resume_url,
-        applied_at: new Date().toISOString(),
-      });
+      .insert(applicationData);
 
     if (insertError) {
       console.error('Insert application error:', insertError);
@@ -77,7 +106,7 @@ exports.applyJob = async (req, res) => {
     const { count: newCount, error: newCountError } = await db
       .from('job_applications')
       .select('*', { count: 'exact', head: true })
-      .eq('job_id', job_id);
+      .eq('job_id', finalJobId);
 
     if (newCountError) {
       console.error('New count error:', newCountError);
@@ -88,14 +117,14 @@ exports.applyJob = async (req, res) => {
     const { error: updateError } = await db
       .from('job_applications')
       .update({ applicant_count: newCount })
-      .eq('job_id', job_id);
+      .eq('job_id', finalJobId);
 
     if (updateError) {
       console.error('Update count error:', updateError);
       // Continue
     }
 
-    return res.status(201).json({ message: "Job application submitted" });
+    return res.status(201).json({ message: "Job application submitted successfully" });
   } catch (err) {
     if (err && err.status) return res.status(err.status).json({ error: err.message });
     console.error("applyJob error:", err);
@@ -221,5 +250,4 @@ exports.withdrawApplication = async (req, res) => {
 //   }
 // };
 
-// // view application ststus, no of applicants reached 
-
+// // view application ststus, no of applicants reached

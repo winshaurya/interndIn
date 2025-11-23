@@ -80,7 +80,7 @@ const AlumniDashboard = () => {
   });
 
   useEffect(() => {
-    if (!profileLoading && !profileResponse?.data?.profile) {
+    if (!profileLoading && !profileResponse?.profile) {
       navigate('/profile-setup');
     }
   }, [profileLoading, profileResponse, navigate]);

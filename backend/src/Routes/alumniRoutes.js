@@ -9,9 +9,10 @@ const {
   completeProfile,
   updateProfile,
   getDashboardStats,
+  getPublicProfile,
 } = require("../controllers/AlumniController");
 const { authenticate } = require("../middleware/authMiddleware");
-const { getMyJobs } = require("../controllers/JobController");
+const { getMyJobs } = require("../controllers/JobPostingController");
 
 const router = express.Router();
 
@@ -22,6 +23,11 @@ const router = express.Router();
  */
 router.get("/profile", authenticate, getProfile);
 router.put("/profile", authenticate, upsertProfile);
+
+/**
+ * Public profile viewing (for students to view alumni profiles)
+ */
+router.get("/profile/:userId", authenticate, getPublicProfile);
 
 /**
  * Company management (frontend createCompany() expects POST /alumni/company)

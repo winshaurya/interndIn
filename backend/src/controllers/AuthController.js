@@ -1,7 +1,8 @@
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const db = require('../config/db');
+const { sendEmail } = require('../services/emailService');
 const { generateTokens } = require('../config/jwt');
-
 // Helper function to hash passwords
 const hashPassword = async (password) => {
   const saltRounds = 12;
@@ -60,7 +61,7 @@ const register = async (req, res) => {
         role,
         first_name: firstName,
         last_name: lastName,
-        created_at: new Date().toISOString(),
+        email_verified: true, // Skip email verification for now
         updated_at: new Date().toISOString()
       })
       .select('id, email, role, first_name, last_name')
@@ -298,9 +299,164 @@ const refreshToken = async (req, res) => {
   }
 };
 
+// Request password reset
+const requestPasswordReset = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email is required'
+      });
+    }
+
+    // Check if user exists
+    const { data: user, error: userError } = await db
+      .from('users')
+      .select('id, email')
+      .eq('email', email)
+      .single();
+
+    if (userError || !user) {
+      // Don't reveal if email exists or not for security
+      return res.json({
+        success: true,
+        message: 'If an account with this email exists, a password reset link has been sent.'
+      });
+    }
+
+    // Generate reset token
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const resetTokenExpiry = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+
+    // Store reset token (you might want to create a separate table for this)
+    // For now, we'll store it in the user record
+    const { error: updateError } = await db
+      .from('users')
+      .update({
+        reset_token: resetToken,
+        reset_token_expiry: resetTokenExpiry.toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', user.id);
+
+    if (updateError) {
+      console.error('Reset token update error:', updateError);
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to generate reset token'
+      });
+    }
+
+    // Send reset email - TODO: Uncomment when SMTP is configured
+    /*
+    const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/reset-password?token=${resetToken}`;
+    const emailHtml = `
+      <h2>Password Reset Request</h2>
+      <p>You requested a password reset for your InterndIn account.</p>
+      <p>Click the link below to reset your password:</p>
+      <a href="${resetUrl}">Reset Password</a>
+      <p>This link will expire in 15 minutes.</p>
+      <p>If you didn't request this, please ignore this email.</p>
+    `;
+
+    await sendEmail({
+      to: email,
+      subject: 'Password Reset - InterndIn',
+      html: emailHtml
+    });
+    */
+
+    res.json({
+      success: true,
+      message: 'If an account with this email exists, a password reset link has been sent.'
+    });
+
+  } catch (error) {
+    console.error('Password reset request error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+};
+
+// Reset password with token
+const resetPassword = async (req, res) => {
+  try {
+    const { token, newPassword } = req.body;
+
+    if (!token || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Token and new password are required'
+      });
+    }
+
+    // Find user with valid reset token
+    const { data: user, error: userError } = await db
+      .from('users')
+      .select('id, reset_token_expiry')
+      .eq('reset_token', token)
+      .single();
+
+    if (userError || !user) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid or expired reset token'
+      });
+    }
+
+    // Check if token is expired
+    if (new Date(user.reset_token_expiry) < new Date()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Reset token has expired'
+      });
+    }
+
+    // Hash new password
+    const hashedPassword = await hashPassword(newPassword);
+
+    // Update password and clear reset token
+    const { error: updateError } = await db
+      .from('users')
+      .update({
+        password_hash: hashedPassword,
+        reset_token: null,
+        reset_token_expiry: null,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', user.id);
+
+    if (updateError) {
+      console.error('Password reset error:', updateError);
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to reset password'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Password reset successfully'
+    });
+
+  } catch (error) {
+    console.error('Password reset error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+};
+
 module.exports = {
   register,
   login,
   getProfile,
-  refreshToken
+  refreshToken,
+  requestPasswordReset,
+  resetPassword
 };

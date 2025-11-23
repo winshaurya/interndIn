@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
-import { Search, Filter, Eye, Download, MessageSquare, X, ArrowLeft } from "lucide-react";
+import { Search, Filter, Eye, Download, MessageSquare, X, ArrowLeft, UserPlus } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DataState } from "@/components/common/DataState";
 import { apiClient } from "@/lib/api";
@@ -424,7 +424,11 @@ export function JobApplicants() {
                     <TableCell>{renderStatusBadge(applicant.status)}</TableCell>
                     <TableCell>
                       <div className="flex items-center space-x-2">
-                        <Button variant="ghost" size="sm">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => navigate(`/student/profile/${applicant.user_id}`)}
+                        >
                           <Eye className="h-4 w-4" />
                           <span className="ml-1 hidden sm:inline">Profile</span>
                         </Button>
@@ -432,7 +436,19 @@ export function JobApplicants() {
                           <Download className="h-4 w-4" />
                           <span className="ml-1 hidden sm:inline">Resume</span>
                         </Button>
-                        <Button variant="ghost" size="sm">
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => navigate(`/student/profile/${applicant.user_id}`)}
+                        >
+                          <UserPlus className="h-4 w-4" />
+                          <span className="ml-1 hidden sm:inline">Connect</span>
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => navigate("/alumni/messages")}
+                        >
                           <MessageSquare className="h-4 w-4" />
                           <span className="ml-1 hidden sm:inline">Message</span>
                         </Button>

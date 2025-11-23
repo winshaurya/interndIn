@@ -30,10 +30,16 @@ EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- ===== CORE TABLES =====
 CREATE TABLE IF NOT EXISTS users (
-  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   email CITEXT NOT NULL UNIQUE,
+  password_hash TEXT,
+  first_name VARCHAR(100),
+  last_name VARCHAR(100),
   role user_role NOT NULL DEFAULT 'student',
-  status user_status NOT NULL DEFAULT 'pending',
+  status user_status NOT NULL DEFAULT 'active',
+  reset_token TEXT,
+  reset_token_expiry TIMESTAMPTZ,
+  email_verified BOOLEAN NOT NULL DEFAULT false,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -121,6 +127,15 @@ CREATE TABLE IF NOT EXISTS job_applications (
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   resume_url TEXT,
   cover_letter TEXT,
+  first_name VARCHAR(100),
+  last_name VARCHAR(100),
+  email CITEXT,
+  phone VARCHAR(20),
+  portfolio_url TEXT,
+  custom_answers JSONB,
+  expected_salary VARCHAR(80),
+  available_start_date DATE,
+  nda_accepted BOOLEAN DEFAULT false,
   applicant_count INTEGER NOT NULL DEFAULT 0,
   status VARCHAR(40) NOT NULL DEFAULT 'submitted',
   applied_at TIMESTAMPTZ NOT NULL DEFAULT now(),

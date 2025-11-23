@@ -1,10 +1,10 @@
-import { useState } from "react";
-import { 
-  Home, 
-  Briefcase, 
-  Users, 
-  Building2, 
-  Settings, 
+import { useState, useEffect } from "react";
+import {
+  Home,
+  Briefcase,
+  Users,
+  Building2,
+  Settings,
   User,
   PlusCircle,
   ChevronLeft,
@@ -13,21 +13,8 @@ import {
 import { NavLink } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-
-// Mock state for company existence
-const hasCompany = true;
-
-const navigation = [
-  { name: "Home", href: "/alumni", icon: Home },
-  { name: "Postings", href: "/alumni/postings", icon: Briefcase },
-  { name: "Edit My Profile", href: "/alumni/profile", icon: User },
-  { 
-    name: hasCompany ? "Company Profile" : "Add Company", 
-    href: hasCompany ? "/alumni/company-profile" : "/alumni/add-company", 
-    icon: Building2 
-  },
-  { name: "Applications Overview", href: "/alumni/applications", icon: Users },
-];
+import { useQuery } from "@tanstack/react-query";
+import { apiClient } from "@/lib/api";
 
 const quickActions = [
   { name: "New message from applicant", href: "/alumni/messages", icon: PlusCircle },
@@ -35,6 +22,27 @@ const quickActions = [
 
 export function AlumniSidebar({ className }) {
   const [collapsed, setCollapsed] = useState(false);
+
+  // Fetch alumni profile to determine if they have a company
+  const { data: profileData, isLoading } = useQuery({
+    queryKey: ['alumni-profile'],
+    queryFn: () => apiClient.getAlumniProfile(),
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+
+  const hasCompany = profileData?.data?.company !== null && profileData?.data?.company !== undefined;
+
+  const navigation = [
+    { name: "Home", href: "/alumni", icon: Home },
+    { name: "Postings", href: "/alumni/postings", icon: Briefcase },
+    { name: "Edit My Profile", href: "/alumni/profile", icon: User },
+    {
+      name: hasCompany ? "Company Profile" : "Add Company",
+      href: hasCompany ? "/alumni/company-profile" : "/alumni/add-company",
+      icon: Building2
+    },
+    { name: "Applications Overview", href: "/alumni/applications", icon: Users },
+  ];
 
   return (
     <div 

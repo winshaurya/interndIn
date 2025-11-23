@@ -17,6 +17,8 @@ const JobRoutes = require("./Routes/JobRoutes");
 const utilityRoutes = require("./Routes/utilityRoutes");
 const uploadRoutes = require("./Routes/uploadRoutes");
 const profileRoutes = require("./Routes/profileRoutes");
+const connectionRoutes = require("./Routes/connectionRoutes");
+const messagingRoutes = require("./Routes/messagingRoutes");
 const db = require("./config/db");
 const { ensureBucketExists } = require("./services/storageService");
 
@@ -109,6 +111,8 @@ app.use("/api/job", JobRoutes);
 app.use("/api/upload", uploadRoutes);
 app.use("/api/profile", profileRoutes);
 app.use("/api", utilityRoutes);
+app.use("/api", connectionRoutes);
+app.use("/api", messagingRoutes);
 
 // ==================== HEALTH CHECK ====================
 app.get("/", (req, res) => {

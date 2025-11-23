@@ -167,15 +167,63 @@ exports.getConnections = async (req, res) => {
       return res.status(401).json({ success: false, message: "Unauthenticated" });
     }
 
-    const { data, error } = await db
+    // Get connections
+    const { data: connections, error: connectionsError } = await db
       .from("connections")
       .select("*")
       .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
+      .eq("status", "accepted")
       .order("created_at", { ascending: false });
 
-    if (error) throw error;
+    if (connectionsError) throw connectionsError;
 
-    res.json({ success: true, data: data || [] });
+    if (!connections || connections.length === 0) {
+      return res.json({ success: true, data: [] });
+    }
+
+    // Get user IDs of connected users
+    const connectedUserIds = connections.map(conn =>
+      conn.sender_id === userId ? conn.receiver_id : conn.sender_id
+    );
+
+    // Get user profiles
+    const { data: users, error: usersError } = await db
+      .from("users")
+      .select("id, name, role")
+      .in("id", connectedUserIds);
+
+    if (usersError) throw usersError;
+
+    // Get unread message counts
+    const unreadCounts = {};
+    for (const otherUserId of connectedUserIds) {
+      const { count, error: countError } = await db
+        .from("messages")
+        .select("*", { count: "exact", head: true })
+        .eq("receiver_id", userId)
+        .eq("sender_id", otherUserId)
+        .eq("is_read", false);
+
+      if (!countError) {
+        unreadCounts[otherUserId] = count || 0;
+      }
+    }
+
+    // Combine data
+    const enrichedConnections = connections.map(conn => {
+      const otherUserId = conn.sender_id === userId ? conn.receiver_id : conn.sender_id;
+      const otherUser = users.find(u => u.id === otherUserId);
+
+      return {
+        id: conn.id,
+        status: conn.status,
+        created_at: conn.created_at,
+        otherUser: otherUser || { id: otherUserId, name: "Unknown User", role: "unknown" },
+        unreadCount: unreadCounts[otherUserId] || 0,
+      };
+    });
+
+    res.json({ success: true, data: enrichedConnections });
   } catch (error) {
     console.error("Error fetching connections:", error);
     res.status(500).json({ success: false, message: "Server error" });

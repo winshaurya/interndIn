@@ -89,11 +89,20 @@ const upsertProfile = async (req, res) => {
       ...(cgpa !== undefined && { cgpa: parseFloat(cgpa) }),
       ...(achievements !== undefined && { achievements }),
       ...(experiences !== undefined && { experiences }),
-      ...(desiredRoles !== undefined && { desired_roles: desiredRoles }),
-      ...(preferredLocations !== undefined && { preferred_locations: preferredLocations }),
-      ...(workMode !== undefined && { work_mode: workMode }),
       ...(academics !== undefined && { academics }),
     };
+
+    // Handle preferences JSONB field
+    if (desiredRoles !== undefined || preferredLocations !== undefined || workMode !== undefined) {
+      const currentPreferences = existing?.preferences || {};
+      const updatedPreferences = {
+        ...currentPreferences,
+        ...(desiredRoles !== undefined && { desired_roles: desiredRoles }),
+        ...(preferredLocations !== undefined && { preferred_locations: preferredLocations }),
+        ...(workMode !== undefined && { work_mode: workMode }),
+      };
+      patch.preferences = updatedPreferences;
+    }
 
     if (existing) {
       // UPDATE (edit / completion continued)
@@ -162,9 +171,11 @@ const upsertProfile = async (req, res) => {
       cgpa: cgpa ? parseFloat(cgpa) : null,
       achievements: achievements || null,
       experiences: experiences || null,
-      desired_roles: desiredRoles || null,
-      preferred_locations: preferredLocations || null,
-      work_mode: workMode || null,
+      preferences: {
+        desired_roles: desiredRoles || null,
+        preferred_locations: preferredLocations || null,
+        work_mode: workMode || null,
+      },
     };
 
     const { error: insertError } = await db
@@ -266,4 +277,78 @@ const getDashboardStats = async (req, res) => {
   }
 };
 
-module.exports = { getMyProfile, upsertProfile, getDashboardStats };
+/**
+ * GET /student/profile/:userId
+ * Returns public profile information for a student (viewable by alumni)
+ */
+const getPublicProfile = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const currentUserId = getUserIdFromReq(req);
+
+    if (!currentUserId) return res.status(401).json({ error: "Unauthorized" });
+
+    // Get student profile
+    const { data: profile, error: profileError } = await db
+      .from('student_profiles')
+      .select(`
+        id, name, branch, grad_year, skills, resume_url, academics,
+        experiences, achievements, preferences
+      `)
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (profileError) {
+      console.error("Public profile fetch error:", profileError);
+      return res.status(500).json({ error: "Failed to fetch profile" });
+    }
+
+    if (!profile) {
+      return res.status(404).json({ error: "Profile not found" });
+    }
+
+    // Extract preferences fields
+    const preferences = profile.preferences || {};
+    const publicProfile = {
+      ...profile,
+      desired_roles: preferences.desired_roles,
+      preferred_locations: preferences.preferred_locations,
+      work_mode: preferences.work_mode,
+    };
+    delete publicProfile.preferences;
+
+    // Get user info
+    const { data: user, error: userError } = await db
+      .from('users')
+      .select('role')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (userError || !user || user.role !== 'student') {
+      return res.status(404).json({ error: "Profile not found" });
+    }
+
+    // Check if current user is connected to this student
+    const { data: connection, error: connectionError } = await db
+      .from('connections')
+      .select('status')
+      .or(`and(sender_id.eq.${currentUserId},receiver_id.eq.${userId}),and(sender_id.eq.${userId},receiver_id.eq.${currentUserId})`)
+      .eq('status', 'accepted')
+      .maybeSingle();
+
+    const isConnected = !!connection;
+
+    return res.json({
+      profile: {
+        ...publicProfile,
+        isConnected,
+        userId,
+      }
+    });
+  } catch (err) {
+    console.error("Public profile error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+module.exports = { getMyProfile, upsertProfile, getDashboardStats, getPublicProfile };
