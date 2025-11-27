@@ -1,16 +1,16 @@
 const express = require('express');
-const router = express.Router();
-const { register, login, getProfile, refreshToken, requestPasswordReset, resetPassword } = require('../controllers/AuthController');
+const { register, login, getProfile } = require('../controllers/SimpleAuthController');
 const { authenticate } = require('../middleware/authMiddleware');
 
-// Public routes
-router.post('/register', register);
-router.post('/login', login);
-router.post('/refresh', refreshToken);
-router.post('/request-password-reset', requestPasswordReset);
-router.post('/reset-password', resetPassword);
+const router = express.Router();
 
-// Protected routes
+// POST /api/auth/register
+router.post('/register', register);
+
+// POST /api/auth/login
+router.post('/login', login);
+
+// GET /api/auth/profile
 router.get('/profile', authenticate, getProfile);
 
 module.exports = router;

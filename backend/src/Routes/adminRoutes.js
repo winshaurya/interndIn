@@ -1,7 +1,7 @@
 const express = require("express");
 const {
-  approveAlumni,
-  rejectAlumni,
+  approveCompany,
+  rejectCompany,
   getPendingAlumni,
   verifyAlumni,
   getAllJobsAdmin,
@@ -10,7 +10,7 @@ const {
   deleteUser,
   sendNotification,
   getDashboardStats,
-  updateUserStatus, // newly added
+  updateUserStatus,
 } = require("../controllers/AdminController");
 const { authenticate, isAdmin } = require("../middleware/authMiddleware");
 
@@ -25,13 +25,13 @@ router.patch(
   "/companies/:companyId/approve",
   authenticate,
   isAdmin,
-  approveAlumni
+  approveCompany
 );
 router.patch(
   "/companies/:companyId/reject",
   authenticate,
   isAdmin,
-  rejectAlumni
+  rejectCompany
 );
 
 // Job Oversight

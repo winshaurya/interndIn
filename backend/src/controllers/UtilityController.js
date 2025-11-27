@@ -15,15 +15,17 @@ exports.searchStudents = async (req, res) => {
     const to = from + pageSize - 1;
 
     let query = db
-      .from("student_profiles")
+      .from("profiles")
       .select(
-        `id,name,student_id,branch,grad_year,skills,resume_url,created_at,users(email)`
-      , { count: "exact" })
+        `*, student_details(*)`,
+        { count: "exact" }
+      )
+      .eq('role', 'student')
       .order("created_at", { ascending: false });
 
-    if (name) query = query.ilike("name", `%${name}%`);
-    if (branch) query = query.eq("branch", branch);
-    if (year) query = query.eq("grad_year", Number(year));
+    if (name) query = query.ilike("full_name", `%${name}%`);
+    if (branch) query = query.ilike("student_details.university_branch", `%${branch}%`);
+    if (year) query = query.eq("student_details.grad_year", Number(year));
 
     const { data, error, count } = await query.range(from, to);
     if (error) throw error;
@@ -52,15 +54,17 @@ exports.searchAlumni = async (req, res) => {
     const to = from + pageSize - 1;
 
     let query = db
-      .from("alumni_profiles")
+      .from("profiles")
       .select(
-        `id,name,grad_year,current_title,created_at,users(email),companies!left(name,industry,website)`
-      , { count: "exact" })
+        `*, alumni_details(*), companies(*)`,
+        { count: "exact" }
+      )
+      .eq('role', 'alumni')
       .order("created_at", { ascending: false });
 
-    if (name) query = query.ilike("name", `%${name}%`);
+    if (name) query = query.ilike("full_name", `%${name}%`);
     if (company) query = query.ilike("companies.name", `%${company}%`);
-    if (year) query = query.eq("grad_year", Number(year));
+    if (year) query = query.eq("alumni_details.grad_year", Number(year));
 
     const { data, error, count } = await query.range(from, to);
     if (error) throw error;
@@ -77,3 +81,5 @@ exports.searchAlumni = async (req, res) => {
     res.status(500).json({ success: false, message: "Server error" });
   }
 };
+
+module.exports = { searchStudents, searchAlumni };

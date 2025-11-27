@@ -1,0 +1,98 @@
+-- Extracted Table and Column Definitions from supabase_schema.sql
+
+-- Table: profiles
+-- Columns:
+-- id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE
+-- email CITEXT
+-- role user_role NOT NULL DEFAULT 'student'
+-- full_name TEXT
+-- avatar_url TEXT
+-- headline TEXT
+-- about TEXT
+-- is_verified BOOLEAN DEFAULT false
+-- created_at TIMESTAMPTZ DEFAULT now()
+-- updated_at TIMESTAMPTZ DEFAULT now()
+
+-- Table: student_details
+-- Columns:
+-- id UUID PRIMARY KEY REFERENCES public.profiles(id) ON DELETE CASCADE
+-- university_branch TEXT
+-- grad_year INTEGER
+-- cgpa NUMERIC(3,2)
+-- resume_url TEXT
+-- skills TEXT[]
+-- updated_at TIMESTAMPTZ DEFAULT now()
+
+-- Table: alumni_details
+-- Columns:
+-- id UUID PRIMARY KEY REFERENCES public.profiles(id) ON DELETE CASCADE
+-- linkedin_url TEXT
+-- current_position TEXT
+-- experience_years INTEGER
+-- updated_at TIMESTAMPTZ DEFAULT now()
+
+-- Table: companies
+-- Columns:
+-- id UUID PRIMARY KEY DEFAULT gen_random_uuid()
+-- owner_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE
+-- name TEXT NOT NULL
+-- website TEXT
+-- logo_url TEXT
+-- description TEXT
+-- location TEXT
+-- is_active BOOLEAN DEFAULT true
+-- created_at TIMESTAMPTZ DEFAULT now()
+-- updated_at TIMESTAMPTZ DEFAULT now()
+
+-- Table: jobs
+-- Columns:
+-- id UUID PRIMARY KEY DEFAULT gen_random_uuid()
+-- company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE
+-- posted_by UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE
+-- title TEXT NOT NULL
+-- description TEXT NOT NULL
+-- type job_type DEFAULT 'full-time'
+-- mode work_mode DEFAULT 'on-site'
+-- location TEXT
+-- salary_range TEXT
+-- is_active BOOLEAN DEFAULT true
+-- created_at TIMESTAMPTZ DEFAULT now()
+-- updated_at TIMESTAMPTZ DEFAULT now()
+
+-- Table: job_applications
+-- Columns:
+-- id UUID PRIMARY KEY DEFAULT gen_random_uuid()
+-- job_id UUID NOT NULL REFERENCES public.jobs(id) ON DELETE CASCADE
+-- student_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE
+-- resume_url TEXT NOT NULL
+-- cover_letter TEXT
+-- status application_status DEFAULT 'submitted'
+-- applied_at TIMESTAMPTZ DEFAULT now()
+-- updated_at TIMESTAMPTZ DEFAULT now()
+
+-- Table: conversations
+-- Columns:
+-- id UUID PRIMARY KEY DEFAULT gen_random_uuid()
+-- student_id UUID NOT NULL REFERENCES public.profiles(id)
+-- alumni_id UUID NOT NULL REFERENCES public.profiles(id)
+-- job_id UUID REFERENCES public.jobs(id) ON DELETE SET NULL
+-- created_at TIMESTAMPTZ DEFAULT now()
+
+-- Table: messages
+-- Columns:
+-- id UUID PRIMARY KEY DEFAULT gen_random_uuid()
+-- conversation_id UUID NOT NULL REFERENCES public.conversations(id) ON DELETE CASCADE
+-- sender_id UUID NOT NULL REFERENCES public.profiles(id)
+-- content TEXT NOT NULL
+-- is_read BOOLEAN DEFAULT false
+-- created_at TIMESTAMPTZ DEFAULT now()
+
+-- Table: notifications
+-- Columns:
+-- id UUID PRIMARY KEY DEFAULT gen_random_uuid()
+-- user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE
+-- title TEXT NOT NULL
+-- message TEXT NOT NULL
+-- type TEXT DEFAULT 'system'
+-- is_read BOOLEAN DEFAULT false
+-- created_at TIMESTAMPTZ DEFAULT now()

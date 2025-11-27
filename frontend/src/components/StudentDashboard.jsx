@@ -40,7 +40,7 @@ export default function StudentDashboard() {
     isLoading: dashboardLoading,
   } = useQuery({
     queryKey: ["student-dashboard"],
-    queryFn: () => apiClient.request("/student/dashboard"),
+    queryFn: () => apiClient.getStudentDashboard(),
   });
 
   const {

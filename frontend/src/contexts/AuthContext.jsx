@@ -23,8 +23,8 @@ export const AuthProvider = ({ children }) => {
       if (token) {
         try {
           // Verify token by fetching profile
-          const response = await apiClient.get('/auth/profile');
-          setUser(response.data.user);
+          const response = await apiClient.request('/auth/profile');
+          setUser(response.user);
           setIsAuthenticated(true);
         } catch (error) {
           console.error('Token verification failed:', error);
@@ -40,13 +40,15 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     try {
-      const response = await apiClient.post('/auth/login', { email, password });
+      const response = await apiClient.request('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ email, password })
+      });
 
-      const { user: userData, tokens } = response.data;
+      const { user: userData, token } = response;
 
-      // Store tokens
-      localStorage.setItem('accessToken', tokens.accessToken);
-      localStorage.setItem('refreshToken', tokens.refreshToken);
+      // Store token
+      localStorage.setItem('accessToken', token);
 
       // Update state
       setUser(userData);
@@ -61,8 +63,11 @@ export const AuthProvider = ({ children }) => {
 
   const register = async (userData) => {
     try {
-      const response = await apiClient.post('/auth/register', userData);
-      return response.data;
+      const response = await apiClient.request('/auth/register', {
+        method: 'POST',
+        body: JSON.stringify(userData)
+      });
+      return response;
     } catch (error) {
       console.error('Registration error:', error);
       throw new Error(error.response?.data?.message || 'Registration failed');

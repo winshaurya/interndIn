@@ -1,64 +1,8 @@
-// Profile Controller - Industry Standard Profile Management
+// Profile Controller - Simplified to match schema
 const db = require('../config/db');
-const Joi = require('joi');
-
-// ==================== VALIDATION SCHEMAS ====================
-const studentProfileUpdateSchema = Joi.object({
-  name: Joi.string().min(2).max(100).trim(),
-  phone: Joi.string().pattern(/^\+?[1-9]\d{1,14}$/).allow(''),
-  student_id: Joi.string().min(1).max(50).trim(),
-  branch: Joi.string().valid(
-    'CSE', 'IT', 'ECE', 'EE', 'ME', 'CE', 'CHE', 'MCA', 'MBA',
-    'Computer Science & Engineering', 'Information Technology',
-    'Electronics & Communication Engineering', 'Electrical Engineering',
-    'Mechanical Engineering', 'Civil Engineering', 'Chemical Engineering',
-    'Master of Computer Applications', 'Master of Business Administration'
-  ),
-  grad_year: Joi.number().integer().min(2000).max(new Date().getFullYear() + 10),
-  bio: Joi.string().max(500).allow(''),
-  skills: Joi.array().items(Joi.string().trim()).max(20),
-  linkedin_url: Joi.string().uri().allow(''),
-  github_url: Joi.string().uri().allow(''),
-  portfolio_url: Joi.string().uri().allow(''),
-  resume_url: Joi.string().uri().allow('')
-});
-
-const alumniProfileUpdateSchema = Joi.object({
-  name: Joi.string().min(2).max(100).trim(),
-  phone: Joi.string().pattern(/^\+?[1-9]\d{1,14}$/).allow(''),
-  current_title: Joi.string().min(1).max(100).trim(),
-  company_name: Joi.string().min(1).max(100).trim(),
-  grad_year: Joi.number().integer().min(1950).max(new Date().getFullYear()),
-  bio: Joi.string().max(500).allow(''),
-  skills: Joi.array().items(Joi.string().trim()).max(20),
-  experience_years: Joi.number().integer().min(0).max(50),
-  linkedin_url: Joi.string().uri().allow(''),
-  github_url: Joi.string().uri().allow(''),
-  portfolio_url: Joi.string().uri().allow(''),
-  company_website: Joi.string().uri().allow('')
-});
 
 // ==================== HELPER FUNCTIONS ====================
-const getCurrentUserId = (req) => {
-  // In Supabase-first architecture, user ID comes from auth middleware
-  return req.user?.id;
-};
-
-const buildProfileResponse = (userData, profileData) => {
-  return {
-    id: userData.id,
-    email: userData.email,
-    role: userData.role,
-    status: userData.status,
-    created_at: userData.created_at,
-    updated_at: userData.updated_at,
-    profile: profileData ? {
-      ...profileData,
-      skills: profileData.skills || [],
-      updated_at: profileData.updated_at
-    } : null
-  };
-};
+const getCurrentUserId = (req) => req.user?.userId ?? req.user?.id;
 
 // ==================== GET PROFILE ====================
 const getProfile = async (req, res) => {
@@ -71,50 +15,31 @@ const getProfile = async (req, res) => {
       });
     }
 
-    // Get user data from auth.users
-    const { data: userData, error: userError } = await db
-      .from('users')
-      .select('*')
+    // Get profile with details based on role
+    const { data: profile, error } = await db
+      .from('profiles')
+      .select('*, student_details(*), alumni_details(*)')
       .eq('id', userId)
-      .single();
+      .maybeSingle();
 
-    if (userError || !userData) {
+    if (error) {
+      console.error('Get profile error:', error);
+      return res.status(500).json({
+        error: 'Failed to retrieve profile',
+        code: 'INTERNAL_ERROR'
+      });
+    }
+
+    if (!profile) {
       return res.status(404).json({
-        error: 'User not found',
+        error: 'Profile not found',
         code: 'USER_NOT_FOUND'
       });
     }
 
-    let profileData = null;
-
-    // Get profile data based on role
-    if (userData.role === 'student') {
-      const { data, error } = await db
-        .from('student_profiles')
-        .select('*')
-        .eq('user_id', userId)
-        .single();
-
-      if (!error && data) {
-        profileData = data;
-      }
-    } else if (userData.role === 'alumni') {
-      const { data, error } = await db
-        .from('alumni_profiles')
-        .select('*')
-        .eq('user_id', userId)
-        .single();
-
-      if (!error && data) {
-        profileData = data;
-      }
-    }
-
-    const response = buildProfileResponse(userData, profileData);
-
     res.status(200).json({
       success: true,
-      data: response
+      data: profile
     });
 
   } catch (error) {
@@ -137,81 +62,37 @@ const updateStudentProfile = async (req, res) => {
       });
     }
 
-    // Validate input
-    const { error: validationError, value } = studentProfileUpdateSchema.validate(req.body, {
-      abortEarly: false,
-      stripUnknown: true
-    });
+    const { full_name, university_branch, grad_year, cgpa, resume_url, skills } = req.body;
 
-    if (validationError) {
-      const errors = validationError.details.map(detail => ({
-        field: detail.path.join('.'),
-        message: detail.message
-      }));
+    // Update profiles table
+    if (full_name !== undefined) {
+      const { error: profileError } = await db
+        .from('profiles')
+        .update({ full_name })
+        .eq('id', userId);
 
-      return res.status(400).json({
-        error: 'Validation failed',
-        code: 'VALIDATION_ERROR',
-        details: errors
-      });
+      if (profileError) throw profileError;
     }
 
-    // Check if profile exists
-    const { data: existingProfile, error: fetchError } = await db
-      .from('student_profiles')
-      .select('id')
-      .eq('user_id', userId)
-      .single();
+    // Upsert student_details
+    const studentData = {};
+    if (university_branch !== undefined) studentData.university_branch = university_branch;
+    if (grad_year !== undefined) studentData.grad_year = grad_year;
+    if (cgpa !== undefined) studentData.cgpa = cgpa;
+    if (resume_url !== undefined) studentData.resume_url = resume_url;
+    if (skills !== undefined) studentData.skills = skills;
 
-    if (fetchError && fetchError.code !== 'PGRST116') {
-      throw fetchError;
+    if (Object.keys(studentData).length > 0) {
+      const { error: studentError } = await db
+        .from('student_details')
+        .upsert({ id: userId, ...studentData });
+
+      if (studentError) throw studentError;
     }
-
-    let result;
-    if (existingProfile) {
-      // Update existing profile
-      const { data, error } = await db
-        .from('student_profiles')
-        .update({
-          ...value,
-          updated_at: new Date().toISOString()
-        })
-        .eq('user_id', userId)
-        .select()
-        .single();
-
-      if (error) throw error;
-      result = data;
-    } else {
-      // Create new profile
-      const { data, error } = await db
-        .from('student_profiles')
-        .insert({
-          ...value,
-          user_id: userId,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-      result = data;
-    }
-
-    // Get updated user data
-    const { data: userData } = await db
-      .from('users')
-      .select('*')
-      .eq('id', userId)
-      .single();
-
-    const response = buildProfileResponse(userData, result);
 
     res.status(200).json({
       success: true,
-      message: 'Student profile updated successfully',
-      data: response
+      message: 'Student profile updated successfully'
     });
 
   } catch (error) {
@@ -234,81 +115,35 @@ const updateAlumniProfile = async (req, res) => {
       });
     }
 
-    // Validate input
-    const { error: validationError, value } = alumniProfileUpdateSchema.validate(req.body, {
-      abortEarly: false,
-      stripUnknown: true
-    });
+    const { full_name, linkedin_url, current_position, experience_years } = req.body;
 
-    if (validationError) {
-      const errors = validationError.details.map(detail => ({
-        field: detail.path.join('.'),
-        message: detail.message
-      }));
+    // Update profiles table
+    if (full_name !== undefined) {
+      const { error: profileError } = await db
+        .from('profiles')
+        .update({ full_name })
+        .eq('id', userId);
 
-      return res.status(400).json({
-        error: 'Validation failed',
-        code: 'VALIDATION_ERROR',
-        details: errors
-      });
+      if (profileError) throw profileError;
     }
 
-    // Check if profile exists
-    const { data: existingProfile, error: fetchError } = await db
-      .from('alumni_profiles')
-      .select('id')
-      .eq('user_id', userId)
-      .single();
+    // Upsert alumni_details
+    const alumniData = {};
+    if (linkedin_url !== undefined) alumniData.linkedin_url = linkedin_url;
+    if (current_position !== undefined) alumniData.current_position = current_position;
+    if (experience_years !== undefined) alumniData.experience_years = experience_years;
 
-    if (fetchError && fetchError.code !== 'PGRST116') {
-      throw fetchError;
+    if (Object.keys(alumniData).length > 0) {
+      const { error: alumniError } = await db
+        .from('alumni_details')
+        .upsert({ id: userId, ...alumniData });
+
+      if (alumniError) throw alumniError;
     }
-
-    let result;
-    if (existingProfile) {
-      // Update existing profile
-      const { data, error } = await db
-        .from('alumni_profiles')
-        .update({
-          ...value,
-          updated_at: new Date().toISOString()
-        })
-        .eq('user_id', userId)
-        .select()
-        .single();
-
-      if (error) throw error;
-      result = data;
-    } else {
-      // Create new profile
-      const { data, error } = await db
-        .from('alumni_profiles')
-        .insert({
-          ...value,
-          user_id: userId,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-      result = data;
-    }
-
-    // Get updated user data
-    const { data: userData } = await db
-      .from('users')
-      .select('*')
-      .eq('id', userId)
-      .single();
-
-    const response = buildProfileResponse(userData, result);
 
     res.status(200).json({
       success: true,
-      message: 'Alumni profile updated successfully',
-      data: response
+      message: 'Alumni profile updated successfully'
     });
 
   } catch (error) {
@@ -358,9 +193,9 @@ const uploadProfilePicture = async (req, res) => {
 
     // Upload to Supabase Storage
     const fileName = `profile-${userId}-${Date.now()}.${req.file.originalname.split('.').pop()}`;
-    const filePath = `profiles/${fileName}`;
+    const filePath = `${userId}/${fileName}`;
 
-    const { data, error } = await db.supabase.storage
+    const { data, error } = await db.storage
       .from('uploads')
       .upload(filePath, req.file.buffer, {
         contentType: req.file.mimetype,
@@ -370,15 +205,15 @@ const uploadProfilePicture = async (req, res) => {
     if (error) throw error;
 
     // Get public URL
-    const { data: urlData } = db.supabase.storage
+    const { data: urlData } = db.storage
       .from('uploads')
       .getPublicUrl(filePath);
 
-    // Update user profile with picture URL
+    // Update profile with avatar URL
     const { error: updateError } = await db
-      .from('users')
+      .from('profiles')
       .update({
-        profile_picture_url: urlData.publicUrl,
+        avatar_url: urlData.publicUrl,
         updated_at: new Date().toISOString()
       })
       .eq('id', userId);
@@ -389,7 +224,7 @@ const uploadProfilePicture = async (req, res) => {
       success: true,
       message: 'Profile picture uploaded successfully',
       data: {
-        profile_picture_url: urlData.publicUrl
+        avatar_url: urlData.publicUrl
       }
     });
 
@@ -413,14 +248,14 @@ const deleteProfilePicture = async (req, res) => {
       });
     }
 
-    // Get current profile picture URL
-    const { data: userData, error: fetchError } = await db
-      .from('users')
-      .select('profile_picture_url')
+    // Get current avatar URL
+    const { data: profile, error: fetchError } = await db
+      .from('profiles')
+      .select('avatar_url')
       .eq('id', userId)
       .single();
 
-    if (fetchError || !userData?.profile_picture_url) {
+    if (fetchError || !profile?.avatar_url) {
       return res.status(404).json({
         error: 'No profile picture found',
         code: 'NO_PROFILE_PICTURE'
@@ -428,12 +263,11 @@ const deleteProfilePicture = async (req, res) => {
     }
 
     // Extract file path from URL
-    const urlParts = userData.profile_picture_url.split('/');
-    const fileName = urlParts[urlParts.length - 1];
-    const filePath = `profiles/${fileName}`;
+    const urlParts = profile.avatar_url.split('/');
+    const filePath = `${userId}/${urlParts[urlParts.length - 1]}`;
 
     // Delete from storage
-    const { error: deleteError } = await db.supabase.storage
+    const { error: deleteError } = await db.storage
       .from('uploads')
       .remove([filePath]);
 
@@ -441,11 +275,11 @@ const deleteProfilePicture = async (req, res) => {
       console.warn('Failed to delete file from storage:', deleteError);
     }
 
-    // Update user profile
+    // Update profile
     const { error: updateError } = await db
-      .from('users')
+      .from('profiles')
       .update({
-        profile_picture_url: null,
+        avatar_url: null,
         updated_at: new Date().toISOString()
       })
       .eq('id', userId);

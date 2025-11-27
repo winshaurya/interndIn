@@ -2,7 +2,7 @@ import Header from "@/components/Header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Shield, Lock, FileText, Users, PenTool, AlertTriangle, LifeBuoy, Mail, MessageSquare } from "lucide-react";
+import { Shield, Lock, FileText, Users, PenTool, AlertTriangle, LifeBuoy, Mail, MessageSquare, Instagram, Linkedin } from "lucide-react";
 
 const principles = [
   {
@@ -130,6 +130,45 @@ export default function Privacy() {
           </Card>
         </div>
       </section>
+
+      {/* Footer */}
+      <footer className="bg-background border-t py-12">
+        <div className="max-w-5xl mx-auto px-6">
+          <div className="flex flex-col md:flex-row justify-between items-center gap-6">
+            <div className="text-center md:text-left">
+              <h3 className="text-lg font-semibold mb-2">KPCSM - SGSITS</h3>
+              <p className="text-sm text-muted-foreground">
+                Connect with us on social media
+              </p>
+            </div>
+            <div className="flex items-center gap-4">
+              <a
+                href="https://www.instagram.com/kpcsm.sgsits?igsh=bDRkMGxrdDR2N2Z3"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-pink-500 to-purple-600 text-white hover:from-pink-600 hover:to-purple-700 transition-all duration-200"
+              >
+                <Instagram className="h-4 w-4" />
+                <span className="text-sm font-medium">Instagram</span>
+              </a>
+              <a
+                href="https://www.linkedin.com/company/kpcsm/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-all duration-200"
+              >
+                <Linkedin className="h-4 w-4" />
+                <span className="text-sm font-medium">LinkedIn</span>
+              </a>
+            </div>
+          </div>
+          <div className="mt-8 pt-8 border-t text-center">
+            <p className="text-sm text-muted-foreground">
+              © 2025 KPCSM - SGSITS. All rights reserved.
+            </p>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }

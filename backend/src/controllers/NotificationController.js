@@ -107,3 +107,5 @@ exports.deleteNotification = async (req, res) => {
     res.status(500).json({ success: false, message: "Server error" });
   }
 };
+
+module.exports = { getNotifications, markNotificationRead, deleteNotification };

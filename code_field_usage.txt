@@ -1,0 +1,37 @@
+-- Code Field Usage Summary
+
+-- Tables accessed via db.from:
+- profiles: select('id', 'role', '*'), update(profileUpdate), insert({id, email, full_name, avatar_url, role}), select('role').eq('id', userId)
+- companies: select('id', {count: 'exact'}), select('id, owner_id, name'), delete().eq('id', id)
+- jobs: select('id', {count: 'exact'}), select('id').eq('posted_by', alumniId), select(`...`), delete().eq('id', id)
+- job_applications: select('id', {count: 'exact'}), select('id').eq('student_id', userId), select('id').eq('job_id', jobId)
+- conversations: select('id').or(...), insert({...})
+- alumni_details: upsert({id, ...alumniUpdate})
+- messages: (not directly in search, but likely)
+- notifications: (not directly, but in controllers)
+
+-- req.body fields extracted:
+- Student profile: full_name, university_branch, grad_year, skills, resume_url, cgpa
+- Alumni profile: full_name, linkedin_url, current_position, experience_years
+- Auth: email, password, role, firstName, lastName
+- Job posting: title, description, location, salary_range, type, mode
+- Job update: title, description, location, salary_range, job_type, work_mode, status
+- Messaging: receiver_id, content, job_id
+- Job application: (not shown, but likely resume_url, cover_letter)
+- Company: name, website, industry, company_size, about, document_url
+- Admin: action, message, targetRole, status
+- Notification: message, targetRole
+
+-- req.params fields:
+- id (various entities)
+- userId, jobId, companyId, conversationId, applicationId, connectionId
+
+-- Representative SQL-like operations:
+- SELECT id FROM profiles WHERE role = ? AND id = ?
+- UPDATE profiles SET ... WHERE id = ?
+- INSERT INTO profiles (id, email, full_name, ...) VALUES (...)
+- SELECT id FROM jobs WHERE posted_by = ?
+- UPDATE jobs SET title = ?, description = ? WHERE id = ?
+- SELECT * FROM companies WHERE id = ?
+- DELETE FROM jobs WHERE id = ?
+- SELECT id FROM job_applications WHERE student_id = ? OR job_id = ?

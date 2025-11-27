@@ -7,13 +7,13 @@ const {authenticate, isAdmin} = require("../middleware/authMiddleware");
 // =================== Connection Routes ===================
 
 // Send connection request
-router.post("/connections/request", authenticate, connectionController.sendRequest);
+router.post("/connections/request", authenticate, connectionController.sendConnectionRequest);
 
 // Accept connection request
-router.put("/connections/:id/accept", authenticate, connectionController.acceptRequest);
+router.put("/connections/:id/accept", authenticate, connectionController.acceptConnectionRequest);
 
 // Reject connection request
-router.put("/connections/:id/reject", authenticate, connectionController.rejectRequest);
+router.put("/connections/:id/reject", authenticate, connectionController.rejectConnectionRequest);
 
 // List all connections of logged-in user
 router.get("/connections", authenticate, connectionController.getConnections);

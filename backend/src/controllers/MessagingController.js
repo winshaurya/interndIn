@@ -1,29 +1,42 @@
 // src/controllers/MessagingController.js
 const db = require("../config/db");
+const { getUserId, getCurrentTimestamp } = require("../utils/authUtils");
 
-const getUserId = (req) => req.user?.userId ?? req.user?.id;
-const nowIso = () => new Date().toISOString();
-const convoClause = (a, b) =>
-  `and(sender_id.eq.${a},receiver_id.eq.${b}),and(sender_id.eq.${b},receiver_id.eq.${a})`;
-
-// ============ Helper: Check if users are connected ============
-const checkConnection = async (userId, otherUserId) => {
-  const { data, error } = await db
-    .from("connections")
+// ============ Helper: Check if conversation exists ============
+const getOrCreateConversation = async (studentId, alumniId, jobId = null) => {
+  // Check if conversation exists
+  const { data: existing, error: fetchError } = await db
+    .from("conversations")
     .select("id")
-    .or(convoClause(userId, otherUserId))
-    .eq("status", "accepted")
-    .limit(1);
+    .eq("student_id", studentId)
+    .eq("alumni_id", alumniId)
+    .is("job_id", jobId)
+    .maybeSingle();
 
-  if (error) throw error;
-  return Boolean(data?.length);
+  if (fetchError) throw fetchError;
+
+  if (existing) return existing.id;
+
+  // Create new conversation
+  const { data: newConv, error: insertError } = await db
+    .from("conversations")
+    .insert({
+      student_id: studentId,
+      alumni_id: alumniId,
+      job_id: jobId,
+    })
+    .select("id")
+    .single();
+
+  if (insertError) throw insertError;
+  return newConv.id;
 };
 
 // ============ POST /messages ============
-// Send a message (only if connected)
+// Send a message
 exports.sendMessage = async (req, res) => {
   try {
-    const { receiver_id, content } = req.body;
+    const { receiver_id, content, job_id } = req.body;
     const sender_id = getUserId(req);
 
     if (!sender_id) {
@@ -36,23 +49,49 @@ exports.sendMessage = async (req, res) => {
         .json({ success: false, message: "Receiver and content required" });
     }
 
-    const connected = await checkConnection(sender_id, receiver_id);
-    if (!connected) {
+    // Get user roles to determine student/alumni
+    const { data: senderProfile, error: senderError } = await db
+      .from("profiles")
+      .select("role")
+      .eq("id", sender_id)
+      .single();
+
+    if (senderError || !senderProfile) {
+      return res.status(403).json({ success: false, message: "Invalid sender" });
+    }
+
+    const { data: receiverProfile, error: receiverError } = await db
+      .from("profiles")
+      .select("role")
+      .eq("id", receiver_id)
+      .single();
+
+    if (receiverError || !receiverProfile) {
+      return res.status(403).json({ success: false, message: "Invalid receiver" });
+    }
+
+    // Ensure one is student, one is alumni
+    if (senderProfile.role === receiverProfile.role) {
       return res.status(403).json({
         success: false,
-        message: "You can only message connected users",
+        message: "Messages can only be sent between students and alumni",
       });
     }
 
+    const studentId = senderProfile.role === 'student' ? sender_id : receiver_id;
+    const alumniId = senderProfile.role === 'alumni' ? sender_id : receiver_id;
+
+    // Get or create conversation
+    const conversationId = await getOrCreateConversation(studentId, alumniId, job_id);
+
+    // Insert message
     const { data, error } = await db
       .from("messages")
       .insert({
+        conversation_id: conversationId,
         sender_id,
-        receiver_id,
         content,
         is_read: false,
-        created_at: nowIso(),
-        updated_at: nowIso(),
       })
       .select("*")
       .single();
@@ -66,48 +105,40 @@ exports.sendMessage = async (req, res) => {
   }
 };
 
-// ============ GET /messages/:connectionId ============
-// Fetch conversation for a connection
+// ============ GET /messages/:conversationId ============
+// Fetch messages for a conversation
 exports.getConversation = async (req, res) => {
   try {
-    const { connectionId } = req.params;
+    const { conversationId } = req.params;
     const userId = getUserId(req);
 
     if (!userId) {
       return res.status(401).json({ success: false, message: "Unauthenticated" });
     }
 
-    const { data: connection, error: connectionError } = await db
-      .from("connections")
+    // Check if user is part of conversation
+    const { data: conversation, error: convError } = await db
+      .from("conversations")
       .select("*")
-      .eq("id", connectionId)
+      .eq("id", conversationId)
+      .or(`student_id.eq.${userId},alumni_id.eq.${userId}`)
       .maybeSingle();
 
-    if (connectionError) throw connectionError;
+    if (convError) throw convError;
 
-    if (!connection) {
+    if (!conversation) {
       return res
         .status(404)
-        .json({ success: false, message: "Connection not found" });
+        .json({ success: false, message: "Conversation not found" });
     }
 
-    if (
-      connection.sender_id !== userId &&
-      connection.receiver_id !== userId
-    ) {
-      return res.status(403).json({
-        success: false,
-        message: "Not authorized to view this conversation",
-      });
-    }
-
-    const { data: messages, error: messagesError } = await db
+    const { data: messages, error: msgError } = await db
       .from("messages")
       .select("*")
-      .or(convoClause(connection.sender_id, connection.receiver_id))
+      .eq("conversation_id", conversationId)
       .order("created_at", { ascending: true });
 
-    if (messagesError) throw messagesError;
+    if (msgError) throw msgError;
 
     res.json({ success: true, data: messages || [] });
   } catch (error) {
@@ -128,9 +159,13 @@ exports.getUnreadMessages = async (req, res) => {
 
     const { data, error } = await db
       .from("messages")
-      .select("*")
-      .eq("receiver_id", userId)
+      .select(`
+        *,
+        conversations!inner(student_id, alumni_id, job_id),
+        sender:profiles!messages_sender_id_fkey(id, full_name)
+      `)
       .eq("is_read", false)
+      .or(`conversations.student_id.eq.${userId},conversations.alumni_id.eq.${userId}`)
       .order("created_at", { ascending: false });
 
     if (error) throw error;
@@ -153,14 +188,18 @@ exports.markMessageRead = async (req, res) => {
       return res.status(401).json({ success: false, message: "Unauthenticated" });
     }
 
-    const { data: message, error: messageError } = await db
+    // Check if user can read this message (part of conversation)
+    const { data: message, error: msgError } = await db
       .from("messages")
-      .select("id")
+      .select(`
+        id,
+        conversations!inner(student_id, alumni_id)
+      `)
       .eq("id", id)
-      .eq("receiver_id", userId)
+      .or(`conversations.student_id.eq.${userId},conversations.alumni_id.eq.${userId}`)
       .maybeSingle();
 
-    if (messageError) throw messageError;
+    if (msgError) throw msgError;
 
     if (!message) {
       return res
@@ -170,7 +209,7 @@ exports.markMessageRead = async (req, res) => {
 
     const { error } = await db
       .from("messages")
-      .update({ is_read: true, updated_at: nowIso() })
+      .update({ is_read: true })
       .eq("id", id);
 
     if (error) throw error;
@@ -181,3 +220,5 @@ exports.markMessageRead = async (req, res) => {
     res.status(500).json({ success: false, message: "Server error" });
   }
 };
+
+module.exports = { sendMessage, getConversation, getUnreadMessages, markMessageRead };

@@ -1,231 +1,154 @@
-// src/controllers/ConnectionController.js
 const db = require("../config/db");
 
 const getUserId = (req) => req.user?.userId ?? req.user?.id;
-const nowIso = () => new Date().toISOString();
-const pairClause = (a, b) =>
-  `and(sender_id.eq.${a},receiver_id.eq.${b}),and(sender_id.eq.${b},receiver_id.eq.${a})`;
 
-const fetchConnectionById = async (id) => {
-  const { data, error } = await db.from("connections").select("*").eq("id", id).maybeSingle();
-  if (error) throw error;
-  return data;
-};
-
-const findConnectionBetween = async (userA, userB, status) => {
-  let query = db
-    .from("connections")
-    .select("*")
-    .or(pairClause(userA, userB))
-    .limit(1);
-
-  if (status) {
-    query = query.eq("status", status);
-  }
-
-  const { data, error } = await query;
-  if (error) throw error;
-  return data?.[0] ?? null;
-};
-
-// ============ POST /connections/request ============
-// Send connection request (student ↔ alumni or student ↔ student, etc.)
-exports.sendRequest = async (req, res) => {
+// ============ GET /connections ============
+// Get all connections for the logged-in user
+const getConnections = async (req, res) => {
   try {
-    const sender_id = getUserId(req);
-    const { receiver_id } = req.body;
-
-    if (!sender_id) {
-      return res.status(401).json({ success: false, message: "Unauthenticated" });
-    }
-
-    if (!receiver_id) {
-      return res.status(400).json({ success: false, message: "Receiver ID required" });
-    }
-
-    if (receiver_id === sender_id) {
-      return res.status(400).json({ success: false, message: "Cannot connect with yourself" });
-    }
-
-    const existing = await findConnectionBetween(sender_id, receiver_id);
-    if (existing) {
-      return res
-        .status(409)
-        .json({ success: false, message: "Connection already exists or pending" });
-    }
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ success: false, message: "Unauthenticated" });
 
     const { data, error } = await db
-      .from("connections")
-      .insert({
-        sender_id,
-        receiver_id,
-        status: "pending",
-        created_at: nowIso(),
-        updated_at: nowIso(),
-      })
-      .select("*")
-      .single();
+      .from("conversations")
+      .select("id, student_id, alumni_id, created_at")
+      .or(`student_id.eq.${userId},alumni_id.eq.${userId}`)
+      .is("job_id", null);
 
     if (error) throw error;
 
-    res.status(201).json({ success: true, data });
-  } catch (error) {
-    console.error("Error sending request:", error);
+    const connections = data.map(conv => {
+      const otherId = conv.student_id === userId ? conv.alumni_id : conv.student_id;
+      return {
+        id: conv.id,
+        userId: otherId,
+        status: 'accepted',
+        createdAt: conv.created_at,
+      };
+    });
+
+    res.json({ success: true, connections });
+  } catch (err) {
+    console.error("getConnections error:", err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+// ============ GET /connections/requests ============
+// Get pending connection requests for the logged-in user
+const getConnectionRequests = async (req, res) => {
+  try {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ success: false, message: "Unauthenticated" });
+
+    // Since no status in schema, return empty
+    res.json({ success: true, requests: [] });
+  } catch (err) {
+    console.error("getConnectionRequests error:", err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+// ============ POST /connections/request ============
+// Send connection request
+const sendConnectionRequest = async (req, res) => {
+  try {
+    const senderId = getUserId(req);
+    const { receiverId } = req.body;
+
+    if (!senderId) return res.status(401).json({ success: false, message: "Unauthenticated" });
+    if (!receiverId) return res.status(400).json({ success: false, message: "Receiver ID required" });
+    if (receiverId === senderId) return res.status(400).json({ success: false, message: "Cannot connect with yourself" });
+
+    // Assume sender is student, receiver is alumni
+    const { error } = await db
+      .from("conversations")
+      .insert({
+        student_id: senderId,
+        alumni_id: receiverId,
+        job_id: null,
+      });
+
+    if (error) throw error;
+
+    res.json({ success: true, message: "Connection request sent" });
+  } catch (err) {
+    console.error("sendConnectionRequest error:", err);
     res.status(500).json({ success: false, message: "Server error" });
   }
 };
 
 // ============ PUT /connections/:id/accept ============
-// Accept a connection request
-exports.acceptRequest = async (req, res) => {
+// Accept connection request
+const acceptConnectionRequest = async (req, res) => {
   try {
-    const { id } = req.params;
     const userId = getUserId(req);
+    const { id } = req.params;
 
-    if (!userId) {
-      return res.status(401).json({ success: false, message: "Unauthenticated" });
-    }
+    if (!userId) return res.status(401).json({ success: false, message: "Unauthenticated" });
 
-    const request = await fetchConnectionById(id);
-
-    if (!request) {
-      return res.status(404).json({ success: false, message: "Request not found" });
-    }
-
-    if (request.receiver_id !== userId) {
-      return res
-        .status(403)
-        .json({ success: false, message: "Not authorized to accept this request" });
-    }
-
-    if (request.status !== "pending") {
-      return res.status(400).json({ success: false, message: "Request already processed" });
-    }
-
-    const { error } = await db
-      .from("connections")
-      .update({ status: "accepted", updated_at: nowIso() })
-      .eq("id", id);
-
-    if (error) throw error;
-
-    res.json({ success: true, message: "Connection request accepted" });
-  } catch (error) {
-    console.error("Error accepting request:", error);
+    // Since no status, assume it's accepted, do nothing
+    res.json({ success: true, message: "Connection accepted" });
+  } catch (err) {
+    console.error("acceptConnectionRequest error:", err);
     res.status(500).json({ success: false, message: "Server error" });
   }
 };
 
 // ============ PUT /connections/:id/reject ============
-// Reject a connection request
-exports.rejectRequest = async (req, res) => {
+// Reject connection request
+const rejectConnectionRequest = async (req, res) => {
   try {
-    const { id } = req.params;
     const userId = getUserId(req);
+    const { id } = req.params;
 
-    if (!userId) {
-      return res.status(401).json({ success: false, message: "Unauthenticated" });
-    }
-
-    const request = await fetchConnectionById(id);
-
-    if (!request) {
-      return res.status(404).json({ success: false, message: "Request not found" });
-    }
-
-    if (request.receiver_id !== userId) {
-      return res
-        .status(403)
-        .json({ success: false, message: "Not authorized to reject this request" });
-    }
-
-    if (request.status !== "pending") {
-      return res.status(400).json({ success: false, message: "Request already processed" });
-    }
+    if (!userId) return res.status(401).json({ success: false, message: "Unauthenticated" });
 
     const { error } = await db
-      .from("connections")
-      .update({ status: "rejected", updated_at: nowIso() })
-      .eq("id", id);
+      .from("conversations")
+      .delete()
+      .eq("id", id)
+      .or(`student_id.eq.${userId},alumni_id.eq.${userId}`);
 
     if (error) throw error;
 
     res.json({ success: true, message: "Connection request rejected" });
-  } catch (error) {
-    console.error("Error rejecting request:", error);
+  } catch (err) {
+    console.error("rejectConnectionRequest error:", err);
     res.status(500).json({ success: false, message: "Server error" });
   }
 };
 
-// ============ GET /connections ============
-// List all connections of logged-in user
-exports.getConnections = async (req, res) => {
+// ============ DELETE /connections/:connectionId ============
+// Remove connection
+const removeConnection = async (req, res) => {
   try {
     const userId = getUserId(req);
+    const { connectionId } = req.params;
 
-    if (!userId) {
-      return res.status(401).json({ success: false, message: "Unauthenticated" });
-    }
+    if (!userId) return res.status(401).json({ success: false, message: "Unauthenticated" });
+    if (!connectionId) return res.status(400).json({ success: false, message: "Connection ID required" });
 
-    // Get connections
-    const { data: connections, error: connectionsError } = await db
-      .from("connections")
-      .select("*")
-      .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
-      .eq("status", "accepted")
-      .order("created_at", { ascending: false });
+    const { error } = await db
+      .from("conversations")
+      .delete()
+      .eq("id", connectionId)
+      .or(`student_id.eq.${userId},alumni_id.eq.${userId}`);
 
-    if (connectionsError) throw connectionsError;
+    if (error) throw error;
 
-    if (!connections || connections.length === 0) {
-      return res.json({ success: true, data: [] });
-    }
-
-    // Get user IDs of connected users
-    const connectedUserIds = connections.map(conn =>
-      conn.sender_id === userId ? conn.receiver_id : conn.sender_id
-    );
-
-    // Get user profiles
-    const { data: users, error: usersError } = await db
-      .from("users")
-      .select("id, name, role")
-      .in("id", connectedUserIds);
-
-    if (usersError) throw usersError;
-
-    // Get unread message counts
-    const unreadCounts = {};
-    for (const otherUserId of connectedUserIds) {
-      const { count, error: countError } = await db
-        .from("messages")
-        .select("*", { count: "exact", head: true })
-        .eq("receiver_id", userId)
-        .eq("sender_id", otherUserId)
-        .eq("is_read", false);
-
-      if (!countError) {
-        unreadCounts[otherUserId] = count || 0;
-      }
-    }
-
-    // Combine data
-    const enrichedConnections = connections.map(conn => {
-      const otherUserId = conn.sender_id === userId ? conn.receiver_id : conn.sender_id;
-      const otherUser = users.find(u => u.id === otherUserId);
-
-      return {
-        id: conn.id,
-        status: conn.status,
-        created_at: conn.created_at,
-        otherUser: otherUser || { id: otherUserId, name: "Unknown User", role: "unknown" },
-        unreadCount: unreadCounts[otherUserId] || 0,
-      };
-    });
-
-    res.json({ success: true, data: enrichedConnections });
-  } catch (error) {
-    console.error("Error fetching connections:", error);
+    res.json({ success: true, message: "Connection removed" });
+  } catch (err) {
+    console.error("removeConnection error:", err);
     res.status(500).json({ success: false, message: "Server error" });
   }
+};
+
+module.exports = {
+  getConnections,
+  getConnectionRequests,
+  sendConnectionRequest,
+  acceptConnectionRequest,
+  rejectConnectionRequest,
+  removeConnection,
 };

@@ -1,5 +1,52 @@
 import { supabase } from './supabase'
 
+// ==================== NEW: Role-aware Auth Helpers ====================
+export const signUpWithEmailRole = async ({ email, password, role = 'student', redirectTo } = {}) => {
+  const options = { redirectTo, data: { role } }
+  const { data, error } = await supabase.auth.signUp({ email, password }, { data: options.data, redirectTo: options.redirectTo })
+  if (error) throw error
+  return data
+}
+
+export const signInWithOAuthWithRole = async (provider, role = 'student', redirectTo) => {
+  const options = { redirectTo, data: { role } }
+  const { data, error } = await supabase.auth.signInWithOAuth({ provider, options })
+  if (error) throw error
+  return data
+}
+
+export const getMyCompanies = async () => {
+  const { data: { user }, error: userErr } = await supabase.auth.getUser()
+  if (userErr) throw userErr
+  const userId = user?.id
+  const { data, error } = await supabase
+    .from('companies')
+    .select('*')
+    .eq('owner_id', userId)
+    .order('created_at', { ascending: false })
+
+  if (error) throw error
+  return data
+}
+
+export const postJobForCompany = async (companyId, jobData) => {
+  const { data: { user }, error: userErr } = await supabase.auth.getUser()
+  if (userErr) throw userErr
+  const payload = {
+    ...jobData,
+    company_id: companyId,
+    posted_by: user.id
+  }
+  const { data, error } = await supabase
+    .from('jobs')
+    .insert(payload)
+    .select()
+    .single()
+
+  if (error) throw error
+  return data
+}
+
 // ==================== AUTH HELPERS ====================
 export const getCurrentUserId = async () => {
   const { data: { user }, error } = await supabase.auth.getUser()
@@ -10,7 +57,7 @@ export const getCurrentUserId = async () => {
 // ==================== USER PROFILE OPERATIONS ====================
 export const getUserProfile = async (userId) => {
   const { data, error } = await supabase
-    .from('users')
+    .from('profiles')
     .select('*')
     .eq('id', userId)
     .single()
@@ -21,7 +68,7 @@ export const getUserProfile = async (userId) => {
 
 export const updateUserProfile = async (userId, updates) => {
   const { data, error } = await supabase
-    .from('users')
+    .from('profiles')
     .update(updates)
     .eq('id', userId)
     .select()
@@ -34,9 +81,9 @@ export const updateUserProfile = async (userId, updates) => {
 // ==================== STUDENT OPERATIONS ====================
 export const getStudentProfile = async (userId) => {
   const { data, error } = await supabase
-    .from('student_profiles')
+    .from('student_details')
     .select('*')
-    .eq('user_id', userId)
+    .eq('id', userId)
     .single()
 
   if (error) throw error
@@ -45,9 +92,9 @@ export const getStudentProfile = async (userId) => {
 
 export const updateStudentProfile = async (userId, updates) => {
   const { data, error } = await supabase
-    .from('student_profiles')
+    .from('student_details')
     .update(updates)
-    .eq('user_id', userId)
+    .eq('id', userId)
     .select()
     .single()
 
@@ -57,7 +104,7 @@ export const updateStudentProfile = async (userId, updates) => {
 
 export const createStudentProfile = async (profileData) => {
   const { data, error } = await supabase
-    .from('student_profiles')
+    .from('student_details')
     .insert(profileData)
     .select()
     .single()
@@ -69,9 +116,9 @@ export const createStudentProfile = async (profileData) => {
 // ==================== ALUMNI OPERATIONS ====================
 export const getAlumniProfile = async (userId) => {
   const { data, error } = await supabase
-    .from('alumni_profiles')
+    .from('alumni_details')
     .select('*')
-    .eq('user_id', userId)
+    .eq('id', userId)
     .single()
 
   if (error) throw error
@@ -80,9 +127,9 @@ export const getAlumniProfile = async (userId) => {
 
 export const updateAlumniProfile = async (userId, updates) => {
   const { data, error } = await supabase
-    .from('alumni_profiles')
+    .from('alumni_details')
     .update(updates)
-    .eq('user_id', userId)
+    .eq('id', userId)
     .select()
     .single()
 
@@ -92,7 +139,7 @@ export const updateAlumniProfile = async (userId, updates) => {
 
 export const createAlumniProfile = async (profileData) => {
   const { data, error } = await supabase
-    .from('alumni_profiles')
+    .from('alumni_details')
     .insert(profileData)
     .select()
     .single()
@@ -106,8 +153,7 @@ export const getCompany = async (alumniId) => {
   const { data, error } = await supabase
     .from('companies')
     .select('*')
-    .eq('alumni_id', alumniId)
-    .single()
+    .eq('owner_id', alumniId)
 
   if (error && error.code !== 'PGRST116') throw error // PGRST116 is "not found"
   return data
@@ -173,7 +219,7 @@ export const getJobsByAlumni = async (alumniId) => {
   const { data, error } = await supabase
     .from('jobs')
     .select('*')
-    .eq('posted_by_alumni_id', alumniId)
+    .eq('posted_by', alumniId)
     .order('created_at', { ascending: false })
 
   if (error) throw error
@@ -222,12 +268,12 @@ export const getAllJobs = async () => {
       companies (
         name,
         website,
-        about
+        description
       ),
-      alumni_profiles (
-        name,
-        current_title,
-        grad_year
+      posted_by:profiles (
+        id,
+        full_name,
+        headline
       )
     `)
     .order('created_at', { ascending: false })
@@ -245,13 +291,12 @@ export const getJobDetails = async (jobId) => {
         id,
         name,
         website,
-        about
+        description
       ),
-      alumni_profiles (
+      posted_by:profiles (
         id,
-        name,
-        current_title,
-        grad_year
+        full_name,
+        headline
       )
     `)
     .eq('id', jobId)
@@ -279,8 +324,8 @@ export const getAppliedJobs = async (userId) => {
     .select(`
       *,
       jobs (
-        job_title,
-        job_description,
+        title,
+        description,
         created_at,
         companies (
           name,
@@ -288,7 +333,7 @@ export const getAppliedJobs = async (userId) => {
         )
       )
     `)
-    .eq('user_id', userId)
+    .eq('student_id', userId)
     .order('applied_at', { ascending: false })
 
   if (error) throw error
@@ -300,12 +345,13 @@ export const getJobApplicants = async (jobId) => {
     .from('job_applications')
     .select(`
       *,
-      users (
-        email
+      student:profiles (
+        id,
+        email,
+        full_name
       ),
-      student_profiles (
-        name,
-        branch,
+      student_details (
+        university_branch,
         grad_year
       )
     `)
@@ -331,7 +377,7 @@ export const withdrawApplication = async (jobId, userId) => {
     .from('job_applications')
     .delete()
     .eq('job_id', jobId)
-    .eq('user_id', userId)
+    .eq('student_id', userId)
 
   if (error) throw error
 }

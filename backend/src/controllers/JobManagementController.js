@@ -2,7 +2,7 @@
 const db = require("../config/db");
 
 // View applicants for a specific job (Alumni/Admin only)
-exports.viewApplicants = async (req, res) => {
+const viewApplicants = async (req, res) => {
   try {
     const { jobId } = req.params;
     const userId = req.user?.userId ?? req.user?.id;
@@ -16,18 +16,13 @@ exports.viewApplicants = async (req, res) => {
 // Authorization (admin bypass)
     // ---------------------------
     if (role === "alumni") {
-      const { data: profile, error: profileError } = await db
-        .from('alumni_profiles')
-        .select('id')
-        .eq('user_id', userId)
-        .maybeSingle();
-
-      if (profileError) {
-        console.error('viewApplicants profile error:', profileError);
+      // Ensure user is an alumni profile
+      const { data: profCheck, error: profErr } = await db.from('profiles').select('role').eq('id', userId).maybeSingle();
+      if (profErr) {
+        console.error('viewApplicants profile error:', profErr);
         return res.status(500).json({ error: "Server error" });
       }
-
-      if (!profile) {
+      if (!profCheck || profCheck.role !== 'alumni') {
         return res.status(400).json({ error: "Alumni profile not found for this user." });
       }
 
@@ -35,7 +30,7 @@ exports.viewApplicants = async (req, res) => {
         .from('jobs')
         .select('id')
         .eq('id', jobId)
-        .eq('posted_by_alumni_id', profile.id)
+        .eq('posted_by', userId)
         .maybeSingle();
 
       if (ownsJobError) {
@@ -61,12 +56,11 @@ exports.viewApplicants = async (req, res) => {
       .from('job_applications')
       .select(`
         job_id,
-        user_id,
+        student_id,
         resume_url,
-        applicant_count,
         applied_at,
-        users!inner(email),
-        student_profiles!inner(name, branch, grad_year)
+        profiles!inner(email),
+        student_details!inner(university_branch, grad_year, skills)
       `)
       .eq('job_id', jobId)
       .order('applied_at', { ascending: false });
@@ -86,3 +80,5 @@ exports.viewApplicants = async (req, res) => {
     return res.status(500).json({ error: "Server error" });
   }
 };
+
+module.exports = { viewApplicants };
