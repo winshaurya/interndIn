@@ -82,4 +82,5 @@ exports.searchAlumni = async (req, res) => {
   }
 };
 
-module.exports = { searchStudents, searchAlumni };
+// Reuse the `exports.*` assignments above for module exports.
+module.exports = exports;

@@ -34,3 +34,5 @@ router.get('/job/view-applicants/:jobId',
   roleMiddleware('alumni', 'admin'),
   applicationController.getApplicationsForJob
 );
+
+module.exports = router;

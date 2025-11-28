@@ -108,4 +108,5 @@ exports.deleteNotification = async (req, res) => {
   }
 };
 
-module.exports = { getNotifications, markNotificationRead, deleteNotification };
+// Reuse the `exports.*` assignments above for module exports.
+module.exports = exports;

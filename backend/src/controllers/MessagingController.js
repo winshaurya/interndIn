@@ -221,4 +221,5 @@ exports.markMessageRead = async (req, res) => {
   }
 };
 
-module.exports = { sendMessage, getConversation, getUnreadMessages, markMessageRead };
+// Reuse the `exports.*` assignments above for module exports.
+module.exports = exports;

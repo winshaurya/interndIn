@@ -14,11 +14,19 @@ const supabaseUrl = process.env.SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const anonKey = process.env.SUPABASE_ANON_KEY;
 
-invariant(supabaseUrl, "Missing SUPABASE_URL environment variable");
-invariant(
-  serviceRoleKey,
-  "Missing SUPABASE_SERVICE_ROLE_KEY environment variable. The service role key is required for backend database and auth administration."
-);
+if (!supabaseUrl) {
+  console.warn(
+    '⚠️  Missing SUPABASE_URL environment variable. Supabase client will be unavailable.\n' +
+      'Set SUPABASE_URL in backend/.env to enable database and storage features.'
+  );
+}
+
+if (!serviceRoleKey) {
+  console.warn(
+    '⚠️  Missing SUPABASE_SERVICE_ROLE_KEY environment variable. Admin operations will be disabled.\n' +
+      'Set SUPABASE_SERVICE_ROLE_KEY in backend/.env to enable admin features.'
+  );
+}
 
 const defaultHeaders = {
   "X-Client-Info": `interndin-backend/${appVersion}`,
@@ -51,13 +59,11 @@ const mergeOptions = (overrides = {}) => ({
   },
 });
 
-const createAdminClient = () =>
-  createClient(supabaseUrl, serviceRoleKey, mergeOptions());
-const createAnonClient = () =>
-  anonKey ? createClient(supabaseUrl, anonKey, mergeOptions()) : null;
+const createAdminClient = () => createClient(supabaseUrl, serviceRoleKey, mergeOptions());
+const createAnonClient = () => (anonKey ? createClient(supabaseUrl, anonKey, mergeOptions()) : null);
 
-const adminClient = createAdminClient();
-const anonClient = createAnonClient();
+const adminClient = supabaseUrl && serviceRoleKey ? createAdminClient() : null;
+const anonClient = supabaseUrl && anonKey ? createAnonClient() : null;
 
 // indicate whether a service role key is available (useful guards elsewhere)
 const hasServiceRoleKey = Boolean(serviceRoleKey);
@@ -111,21 +117,41 @@ const withClient = async (clientFactory, handler) => {
 };
 
 const db = {
-  from: (...args) => adminClient.from(...args),
-  rpc: (...args) => adminClient.rpc(...args),
-  storage: adminClient.storage,
-  auth: adminClient.auth,
-  channel: (...args) => adminClient.channel(...args),
+  from: (...args) => {
+    if (!adminClient) throw new Error('Supabase admin client not configured (SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY missing)');
+    return adminClient.from(...args);
+  },
+  rpc: (...args) => {
+    if (!adminClient) throw new Error('Supabase admin client not configured (SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY missing)');
+    return adminClient.rpc(...args);
+  },
+  storage: adminClient ? adminClient.storage : {
+    from: () => ({
+      upload: async () => { throw new Error('Supabase storage not configured'); },
+      getPublicUrl: () => ({ publicUrl: '' }),
+      remove: async () => { throw new Error('Supabase storage not configured'); },
+    })
+  },
+  auth: adminClient ? adminClient.auth : {
+    signUp: async () => { throw new Error('Supabase auth not configured'); },
+    signInWithPassword: async () => { throw new Error('Supabase auth not configured'); },
+    admin: { deleteUser: async () => { throw new Error('Supabase admin not configured'); } }
+  },
+  channel: (...args) => {
+    if (!adminClient) throw new Error('Supabase admin client not configured (SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY missing)');
+    return adminClient.channel(...args);
+  },
   supabase: adminClient,
 
   getServiceClient: () => adminClient,
   getPublicClient: () => anonClient,
-  getSessionClient: (accessToken, overrides) =>
-    createSessionClient(accessToken, overrides),
+  getSessionClient: (accessToken, overrides) => createSessionClient(accessToken, overrides),
 
-  withServiceRole: async (handler) => handler(adminClient),
-  withRlsSession: (accessToken, handler) =>
-    withClient(() => createSessionClient(accessToken), handler),
+  withServiceRole: async (handler) => {
+    if (!adminClient) throw new Error('Supabase admin client not configured (SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY missing)');
+    return handler(adminClient);
+  },
+  withRlsSession: (accessToken, handler) => withClient(() => createSessionClient(accessToken), handler),
 
   // Expose helper flag so other modules can check availability
   hasServiceRoleKey,

@@ -116,7 +116,7 @@ const postJob = async (req, res) => {
 };
 
 // Get jobs posted by the authenticated alumni
-exports.getMyJobs = async (req, res) => {
+const getMyJobs = async (req, res) => {
   try {
     const userId = req.user?.userId ?? req.user?.id;
     if (!userId)
@@ -165,7 +165,7 @@ exports.getMyJobs = async (req, res) => {
 };
 
 // Get a specific job posted by the authenticated alumni
-exports.getJobById = async (req, res) => {
+const getJobById = async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user?.userId ?? req.user?.id;
@@ -235,7 +235,7 @@ exports.getJobById = async (req, res) => {
 };
 
 // Update a job posted by the authenticated alumni
-exports.updateJob = async (req, res) => {
+const updateJob = async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user?.userId ?? req.user?.id;
@@ -332,7 +332,7 @@ exports.updateJob = async (req, res) => {
 };
 
 // Delete a job posted by the authenticated alumni
-exports.deleteJob = async (req, res) => {
+const deleteJob = async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user?.userId ?? req.user?.id;

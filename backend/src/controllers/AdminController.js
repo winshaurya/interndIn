@@ -3,6 +3,8 @@ const { sendEmail } = require("../services/emailService");
 const { getUserId, getCurrentTimestamp } = require("../utils/authUtils");
 const { getAdminDashboardStats } = require("../services/dashboardService");
 
+const nowIso = () => new Date().toISOString();
+
 // Helper to safely send HTML/text emails
 const notifyUser = async (email, subject, message) => {
   if (!email) return;
@@ -251,9 +253,9 @@ exports.sendNotification = async (req, res) => {
 exports.getDashboardStats = async (req, res) => {
   try {
     const stats = await getAdminDashboardStats();
-catc{j(ss);
- c (err {
-    console.error("getDashboardStats error:", error);
+    res.json(stats);
+  } catch (err) {
+    console.error("getDashboardStats error:", err);
     res.status(500).json({ error: "Internal server error" });
   }
 };
@@ -286,16 +288,5 @@ exports.updateUserStatus = async (req, res) => {
   }
 };
 
-module.exports = {
-  getPendingAlumni,
-  verifyAlumni,
-  approveCompany,
-  rejectCompany,
-  getAllJobsAdmin,
-  deleteJobAdmin,
-  getAllUsers,
-  deleteUser,
-  sendNotification,
-  getDashboardStats,
-  updateUserStatus,
-};
+// We attach handlers to `exports.*` above; reuse that object for module exports.
+module.exports = exports;
