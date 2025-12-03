@@ -39,6 +39,8 @@ const ProfileEditor = ({ profileData, setProfileData, onSave }) => {
   // Local state for editing
   const [editData, setEditData] = useState({
     ...profileData,
+    skills: profileData.skills || [],
+    experiences: profileData.experiences || [],
     academics: profileData.academics || [
       {
         id: 1,

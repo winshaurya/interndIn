@@ -78,7 +78,7 @@ const register = async (req, res) => {
     });
 
     if (error) {
-      console.error('Supabase admin create user error:', error);
+      console.error('Supabase auth signup error:', error);
       return res.status(400).json({
         success: false,
         message: error.message
@@ -87,49 +87,59 @@ const register = async (req, res) => {
 
     console.log('User created successfully:', data.user?.id);
 
-    // Manually create profile and role-specific details
+    // Ensure profile exists (trigger should handle this, but let's be safe)
     try {
-      const userId = data.user.id;
-
-      // Insert profile
-      const { error: profileError } = await db
+      // Check if profile already exists
+      const { data: existingProfile } = await db
         .from('profiles')
-        .insert({
-          id: userId,
-          email: email,
-          role: role,
-          full_name: `${firstName} ${lastName}`
-        });
+        .select('id')
+        .eq('id', data.user.id)
+        .single();
 
-      if (profileError) {
-        console.error('Profile creation error:', profileError);
-        // Try to delete the auth user if profile creation fails
-        await db.auth.admin.deleteUser(userId);
-        return res.status(500).json({
-          success: false,
-          message: 'Failed to create user profile'
-        });
-      }
+      if (!existingProfile) {
+        // Create profile if it doesn't exist
+        const { error: profileError } = await db
+          .from('profiles')
+          .insert({
+            id: data.user.id,
+            email: email,
+            role: role,
+            full_name: `${firstName} ${lastName}`
+          });
 
-      // Insert role-specific details
-      if (role === 'student') {
-        const { error: studentError } = await db
-          .from('student_details')
-          .insert({ id: userId });
-
-        if (studentError) {
-          console.error('Student details creation error:', studentError);
+        if (profileError) {
+          console.error('Profile creation error:', profileError);
+          // Try to delete the auth user if profile creation fails
+          await db.auth.admin.deleteUser(data.user.id);
+          return res.status(500).json({
+            success: false,
+            message: 'Failed to create user profile'
+          });
         }
-      } else if (role === 'alumni') {
-        const { error: alumniError } = await db
-          .from('alumni_details')
-          .insert({ id: userId });
 
-        if (alumniError) {
-          console.error('Alumni details creation error:', alumniError);
+        // Create role-specific details
+        if (role === 'student') {
+          const { error: studentError } = await db
+            .from('student_details')
+            .insert({ id: data.user.id });
+
+          if (studentError) {
+            console.error('Student details creation error:', studentError);
+          }
+        } else if (role === 'alumni') {
+          const { error: alumniError } = await db
+            .from('alumni_details')
+            .insert({ id: data.user.id });
+
+          if (alumniError) {
+            console.error('Alumni details creation error:', alumniError);
+          }
         }
-      }
 
+        console.log('Profile and role details created successfully');
+      } else {
+        console.log('Profile already exists');
+      }
     } catch (profileCreationError) {
       console.error('Profile creation error:', profileCreationError);
       // Try to delete the auth user if profile creation fails

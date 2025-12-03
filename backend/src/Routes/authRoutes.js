@@ -29,4 +29,45 @@ router.get('/profile', authenticate, getProfile);
 // Body: { fullName, headline, about, avatarUrl }
 router.put('/profile', authenticate, updateProfile);
 
+// Get system capabilities
+// GET /api/auth/capabilities
+router.get('/capabilities', (req, res) => {
+  res.json({
+    success: true,
+    data: {
+      branches: [
+        "Computer Science",
+        "Information Technology",
+        "Electronics & Communication",
+        "Electrical Engineering",
+        "Mechanical Engineering",
+        "Civil Engineering",
+        "Chemical Engineering"
+      ],
+      features: [
+        {
+          icon: "Users",
+          title: "Alumni Network",
+          description: "Connect with SGSITS alumni working in top companies worldwide"
+        },
+        {
+          icon: "Briefcase",
+          title: "Job Opportunities",
+          description: "Access exclusive job postings and internships from alumni companies"
+        },
+        {
+          icon: "TrendingUp",
+          title: "Career Growth",
+          description: "Get mentorship and career guidance from experienced professionals"
+        },
+        {
+          icon: "CheckCircle",
+          title: "Quality Matches",
+          description: "Smart matching based on your skills, branch, and preferences"
+        }
+      ]
+    }
+  });
+});
+
 module.exports = router;

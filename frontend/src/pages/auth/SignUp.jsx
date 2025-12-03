@@ -10,6 +10,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, Eye, EyeOff, GraduationCap, Briefcase, Mail } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/contexts/AuthContext';
+import { getRoleHome } from '@/lib/auth';
 
 const signUpSchema = z.object({
   firstName: z.string().min(2, 'First name must be at least 2 characters'),
@@ -30,6 +32,7 @@ export default function SignUp() {
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
+  const { register: registerUser } = useAuth();
 
   const {
     register,
@@ -53,33 +56,16 @@ export default function SignUp() {
     setError('');
 
     try {
-      const response = await fetch('http://localhost:5004/api/auth/register', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: data.email,
-          password: data.password,
-          role: selectedRole,
-          firstName: data.firstName,
-          lastName: data.lastName,
-        }),
+      await registerUser({
+        email: data.email,
+        password: data.password,
+        role: selectedRole,
+        firstName: data.firstName,
+        lastName: data.lastName,
       });
 
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.message || 'Registration failed');
-      }
-
-      // Store the token if provided
-      if (result.token) {
-        localStorage.setItem('auth_token', result.token);
-      }
-
       // Navigate to role-based home page
-      const homeRoute = selectedRole === 'student' ? '/student' : '/alumni';
+      const homeRoute = getRoleHome(selectedRole);
       navigate(homeRoute);
     } catch (err) {
       setError(err.message || 'Registration failed. Please try again.');

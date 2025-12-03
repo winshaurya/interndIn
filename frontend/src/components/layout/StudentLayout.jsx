@@ -3,7 +3,7 @@ import { Outlet } from "react-router-dom";
 import AppShell from "@/components/shell/AppShell";
 import { navigation } from "@/config/navigation";
 
-export function StudentLayout() {
+function StudentLayout() {
   const [headerMeta, setHeaderMeta] = useState({
     title: "Dashboard",
     description: "Track your progress and opportunities",

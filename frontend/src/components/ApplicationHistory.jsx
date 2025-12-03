@@ -19,10 +19,10 @@ export default function ApplicationHistory() {
     queryFn: () => apiClient.getAppliedJobs(),
   });
 
-  const applications = applicationsResponse?.applications || [];
+  const applications = applicationsResponse?.data?.applications || applicationsResponse?.applications || (Array.isArray(applicationsResponse?.data) ? applicationsResponse?.data : []) || [];
 
-  if (isLoading) return <DataState type="loading" />;
-  if (isError) return <DataState type="error" message="Failed to load applications" />;
+  if (isLoading) return <DataState state="loading" />;
+  if (isError) return <DataState state="error" message="Failed to load applications" />;
 
   return (
     <Card className="mt-8">
@@ -37,7 +37,7 @@ export default function ApplicationHistory() {
             {applications.map((app) => (
               <div key={app.id} className="flex items-center justify-between p-4 rounded-lg border hover:bg-accent transition-colors">
                 <div>
-                  <h4 className="font-medium">{app.jobs?.job_title || app.title}</h4>
+                  <h4 className="font-medium">{app.jobs?.title || app.title}</h4>
                   <p className="text-sm text-muted-foreground">{app.jobs?.companies?.name || app.company}</p>
                   <p className="text-xs text-muted-foreground mt-1">Applied {new Date(app.applied_at).toLocaleDateString()}</p>
                 </div>

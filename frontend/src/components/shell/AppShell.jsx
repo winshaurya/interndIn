@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Menu, Bell, LogOut } from "lucide-react";
+import { Menu, Bell, LogOut, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import SidebarNav from "./SidebarNav";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -34,6 +35,18 @@ export function AppShell({
       navigate("/login", { replace: true });
     } catch (error) {
       console.error("Unable to logout:", error);
+    }
+  };
+
+  const handleSwitchAccount = async () => {
+    try {
+      await logout();
+      navigate("/login", {
+        replace: true,
+        state: { message: "Logged out successfully. Sign in with a different account." }
+      });
+    } catch (error) {
+      console.error("Unable to switch account:", error);
     }
   };
 
@@ -85,14 +98,32 @@ export function AppShell({
                     <Bell className="h-5 w-5 text-muted-foreground" />
                     <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-destructive" />
                   </div>
-                  <div className="text-right leading-tight">
-                    <p className="text-sm font-medium">{displayName}</p>
-                    <RoleBadge role={role} />
-                  </div>
-                  <Button variant="outline" size="sm" onClick={handleLogout}>
-                    <LogOut className="h-4 w-4 mr-2" />
-                    Logout
-                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="sm" className="gap-2">
+                        <User className="h-4 w-4" />
+                        <span className="hidden lg:inline">{displayName}</span>
+                        <RoleBadge role={role} />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-56">
+                      <div className="px-2 py-1.5">
+                        <p className="text-sm font-medium">{displayName}</p>
+                        <p className="text-xs text-muted-foreground">{user?.email}</p>
+                        <RoleBadge role={role} />
+                      </div>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={handleSwitchAccount}>
+                        <User className="mr-2 h-4 w-4" />
+                        Switch Account
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={handleLogout} className="text-red-600">
+                        <LogOut className="mr-2 h-4 w-4" />
+                        Logout
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               </div>
               <div className="flex flex-col gap-3 md:flex-row md:items-center">

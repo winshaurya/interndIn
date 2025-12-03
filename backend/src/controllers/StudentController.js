@@ -24,9 +24,19 @@ const getMyProfile = async (req, res) => {
       return res.status(500).json({ error: "Internal server error" });
     }
 
+    // Flatten student_details into the profile
+    let flattenedProfile = null;
+    if (profile) {
+      const { student_details, ...profileData } = profile;
+      flattenedProfile = {
+        ...profileData,
+        ...(student_details || {}),
+      };
+    }
+
     return res.status(200).json({
       exists: !!profile,
-      profile: profile || null,
+      profile: flattenedProfile,
     });
   } catch (error) {
     console.error("Get Student Profile Error:", error);
@@ -87,16 +97,26 @@ const getDashboardStats = async (req, res) => {
     const userId = getUserIdFromReq(req);
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
-    // Get student profile
+    // Get student profile with details
     const { data: profile, error: profileError } = await db
-      .from('student_details')
-      .select('*')
+      .from('profiles')
+      .select('*, student_details(*)')
       .eq('id', userId)
       .maybeSingle();
 
     if (profileError) {
       console.error("Profile fetch error:", profileError);
       return res.status(500).json({ error: "Failed to fetch profile" });
+    }
+
+    // Flatten student_details into the profile
+    let flattenedProfile = null;
+    if (profile) {
+      const { student_details, ...profileData } = profile;
+      flattenedProfile = {
+        ...profileData,
+        ...(student_details || {}),
+      };
     }
 
     // Get applications count

@@ -52,22 +52,22 @@ export default function StudentDashboard() {
     queryFn: () => apiClient.getJobs(),
   });
 
-  const profile = profileResponse?.data || profileResponse || {};
-  const jobs = jobsResponse?.data?.jobs || jobsResponse?.data || [];
+  const profile = profileResponse?.data?.profile || {};
+  const jobs = jobsResponse?.data?.jobs || (Array.isArray(jobsResponse?.data) ? jobsResponse?.data : []) || [];
 
   const completion = useMemo(() => {
     const checkpoints = [
-      Boolean(profile?.resume_url),
+      Boolean(profile?.resumeUrl),
       Boolean(profile?.skills && profile.skills.length),
-      Boolean(profile?.branch),
-      Boolean(profile?.grad_year),
+      Boolean(profile?.universityBranch),
+      Boolean(profile?.gradYear),
     ];
     const filled = checkpoints.filter(Boolean).length;
     return Math.round((filled / checkpoints.length) * 100) || 0;
   }, [profile]);
 
   useEffect(() => {
-    if (!profileLoading && !profileError && !profileResponse?.profile) {
+    if (!profileLoading && !profileError && !profileResponse?.data?.profile) {
       navigate('/profile-setup');
     }
   }, [profileLoading, profileError, profileResponse, navigate]);
@@ -117,17 +117,17 @@ export default function StudentDashboard() {
               <CardTitle className="text-2xl font-semibold">{completion}% complete</CardTitle>
             </div>
             <Badge variant="outline" className="text-xs">
-              {profile?.branch || "Branch TBD"}
+              {profile?.universityBranch || "Branch TBD"}
             </Badge>
           </CardHeader>
           <CardContent className="space-y-4">
             <Progress value={completion} className="h-2" />
             <div className="grid gap-4 sm:grid-cols-2">
               {[
-                { label: "Resume", done: Boolean(profile?.resume_url) },
+                { label: "Resume", done: Boolean(profile?.resumeUrl) },
                 { label: "Skills", done: Boolean(profile?.skills && profile.skills.length) },
-                { label: "Branch", done: Boolean(profile?.branch) },
-                { label: "Graduation", done: Boolean(profile?.grad_year) },
+                { label: "Branch", done: Boolean(profile?.universityBranch) },
+                { label: "Graduation", done: Boolean(profile?.gradYear) },
               ].map((item) => (
                 <div key={item.label} className="flex items-center justify-between text-sm">
                   <span>{item.label}</span>
@@ -255,18 +255,18 @@ export default function StudentDashboard() {
                   >
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-base font-semibold">{job.job_title || job.title}</p>
-                        <p className="text-sm text-muted-foreground">{job.company_name || job.company}</p>
+                        <p className="text-base font-semibold">{job.title}</p>
+                        <p className="text-sm text-muted-foreground">{job.companies?.name || job.company}</p>
                       </div>
-                      <Badge variant="secondary">{job.work_mode || "Remote"}</Badge>
+                      <Badge variant="secondary">{job.mode || "Remote"}</Badge>
                     </div>
                     <div className="mt-3 flex items-center gap-3 text-sm text-muted-foreground">
                       <span>{job.location || "Flexible"}</span>
                       <Separator orientation="vertical" className="h-4" />
-                      <span>{job.job_type || job.type || "Full-time"}</span>
+                      <span>{job.type || "Full-time"}</span>
                     </div>
                     <div className="mt-4 flex gap-3">
-                      <Button size="sm" variant="outline" onClick={() => navigate(`/jobs/${job.id || job.job_id}`)}>
+                      <Button size="sm" variant="outline" onClick={() => navigate(`/jobs/${job.id}`)}>
                         View details
                       </Button>
                       <Button size="sm">Apply now</Button>

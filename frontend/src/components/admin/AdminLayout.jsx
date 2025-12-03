@@ -3,7 +3,7 @@ import { Outlet } from "react-router-dom";
 import AppShell from "@/components/shell/AppShell";
 import { navigation } from "@/config/navigation";
 
-export function AdminLayout() {
+function AdminLayout() {
   const [headerMeta, setHeaderMeta] = useState({
     title: "Admin Console",
     description: "Monitor platform health and moderate activity.",
@@ -20,3 +20,5 @@ export function AdminLayout() {
     </AppShell>
   );
 }
+
+export default AdminLayout;

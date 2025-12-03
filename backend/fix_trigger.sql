@@ -6,13 +6,21 @@ CREATE OR REPLACE FUNCTION public.handle_new_user() RETURNS TRIGGER AS $$
 DECLARE
   determined_role user_role;
   user_full_name TEXT;
+  role_text TEXT;
 BEGIN
   -- Determine role from metadata
-  determined_role := COALESCE(
-    (new.raw_user_meta_data->>'role')::user_role,
-    (new.user_metadata->>'role')::user_role,
+  role_text := COALESCE(
+    new.raw_user_meta_data->>'role',
+    new.user_metadata->>'role',
     'student'
   );
+
+  -- Safely cast role to enum
+  IF role_text = 'alumni' THEN
+    determined_role := 'alumni'::user_role;
+  ELSE
+    determined_role := 'student'::user_role;
+  END IF;
 
   -- Build full name from available data
   user_full_name := COALESCE(

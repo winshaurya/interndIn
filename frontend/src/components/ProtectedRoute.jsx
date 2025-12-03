@@ -1,13 +1,27 @@
-import { Navigate, useLocation } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { DataState } from "@/components/common/DataState";
+import { getRoleHome } from "@/lib/auth";
+import { useEffect } from "react";
 
 const ProtectedRoute = ({ children, allowedRoles = [] }) => {
   const location = useLocation();
-  const { user, loading, getHomeRoute } = useAuth();
+  const navigate = useNavigate();
+  const { user, isLoading } = useAuth();
   const fallbackPath = `${location.pathname}${location.search}`;
 
-  if (loading) {
+  useEffect(() => {
+    if (!isLoading) {
+      if (!user) {
+        navigate("/login", { replace: true, state: { from: fallbackPath } });
+      } else if (allowedRoles.length > 0 && !allowedRoles.includes(user.role)) {
+        const destination = getRoleHome(user.role) || "/";
+        navigate(destination, { replace: true });
+      }
+    }
+  }, [isLoading, user, allowedRoles, navigate, fallbackPath]);
+
+  if (isLoading) {
     return (
       <div className="py-20">
         <DataState state="loading" message="Restoring your session" />
@@ -15,13 +29,8 @@ const ProtectedRoute = ({ children, allowedRoles = [] }) => {
     );
   }
 
-  if (!user) {
-    return <Navigate to="/login" replace state={{ from: fallbackPath }} />;
-  }
-
-  if (allowedRoles.length > 0 && !allowedRoles.includes(user.role)) {
-    const destination = getHomeRoute() || "/";
-    return <Navigate to={destination} replace />;
+  if (!user || (allowedRoles.length > 0 && !allowedRoles.includes(user.role))) {
+    return null; // Will redirect via useEffect
   }
 
   return children;

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { Suspense, lazy } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -6,58 +6,101 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { AuthProvider } from '@/contexts/AuthContext';
 
-/* ------------------ Admin module imports ------------------ */
-import { AdminLayout } from "@/components/admin/AdminLayout";
-import AdminDashboard from "./pages/admin/AdminDashboard";
-import CompaniesManagement from "./pages/admin/CompaniesManagement";
-import PostingsManagement from "./pages/admin/PostingsManagement";
-import ApplicationsManagement from "./pages/admin/ApplicationsManagement";
-import TaxonomiesManagement from "./pages/admin/TaxonomiesManagement";
-import Analytics from "./pages/admin/Analytics";
-import AuditLogs from "./pages/admin/AuditLogs";
-import Settings from "./pages/admin/Settings";
+// Preload utility for route-based code splitting
+const preloadRoute = (importFn) => {
+  const component = lazy(importFn);
+  // Preload on hover/focus for better UX
+  component.preload = importFn;
+  return component;
+};
 
-/* ------------------ Student / Public module imports ------------------ */
-import Index from "./pages/Index";
-import Jobs from "./pages/Jobs";
-import JobDetails from "./pages/JobDetails";
-import Login from "./pages/auth/Login";
-import SignUp from "./pages/auth/SignUp";
-import AlumniLogin from "./pages/auth/AlumniLogin";
-import AlumniSignUp from "./pages/auth/AlumniSignUp";
-import StudentLogin from "./pages/auth/StudentLogin";
-import StudentSignUp from "./pages/auth/StudentSignUp";
-import ResetPassword from "./pages/auth/ResetPassword";
-import ResetPasswordConfirm from "./pages/auth/ResetPasswordConfirm";
-import OAuthCallback from "./pages/auth/OAuthCallback";
-import StudentDashboard from "./components/StudentDashboard";
-import StudentProfile from "./pages/Profile/StudentProfile";
-import StudentApplications from "./pages/student/Applications";
-import StudentBookmarks from "./pages/student/Bookmarks";
-import MessagesPage from "./pages/MessagesPage";
-import PublicProfilePage from "./pages/PublicProfilePage";
+/* ------------------ Lazy loaded components ------------------ */
 
-/* ------------------ Alumni module imports ------------------ */
-import { AlumniLayout } from "@/components/layout/AlumniLayout";
-import AlumniIndex from "./pages/AlumniIndex";
-import PostingsPage from "./pages/PostingsPage";
-import PostJobPage from "./pages/PostJobPage";
-import AddCompany from "./pages/AddCompany";
-import CompanyProfilePage from "./pages/CompanyProfilePage";
-import EditCompanyProfilePage from "./pages/EditCompanyProfilePage";
-import EditMyProfilePage from "./pages/EditMyProfilePage";
-import JobApplicantsPage from "./pages/JobApplicantsPage";
-
-/* ------------------ Shared ------------------ */
+// Core components (loaded immediately)
 import ProtectedRoute from '@/components/ProtectedRoute';
 import PublicRoute from '@/components/PublicRoute';
-import NotFound from "./pages/NotFound";
-import { StudentLayout } from "@/components/layout/StudentLayout";
-import Privacy from "./pages/Privacy";
-import ProfileSetup from "./pages/ProfileSetup";
+
+// Critical pages (preload)
+const Index = lazy(() => import("./pages/Index"));
+const Login = lazy(() => import("./pages/auth/Login"));
+const SignUp = lazy(() => import("./pages/auth/SignUp"));
+const Jobs = lazy(() => import("./pages/Jobs"));
+const JobDetails = lazy(() => import("./pages/JobDetails"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+const Privacy = lazy(() => import("./pages/Privacy"));
+const OAuthCallback = lazy(() => import("./pages/auth/OAuthCallback"));
+
+// Auth pages (medium priority)
+const AlumniLogin = lazy(() => import("./pages/auth/AlumniLogin"));
+const AlumniSignUp = lazy(() => import("./pages/auth/AlumniSignUp"));
+const StudentLogin = lazy(() => import("./pages/auth/StudentLogin"));
+const StudentSignUp = lazy(() => import("./pages/auth/StudentSignUp"));
+const ResetPassword = lazy(() => import("./pages/auth/ResetPassword"));
+const ResetPasswordConfirm = lazy(() => import("./pages/auth/ResetPasswordConfirm"));
+
+// Student pages (lazy loaded)
+const StudentDashboard = lazy(() => import("./components/StudentDashboard"));
+const StudentProfile = lazy(() => import("./pages/Profile/StudentProfile"));
+const StudentApplications = lazy(() => import("./pages/student/Applications"));
+const StudentBookmarks = lazy(() => import("./pages/student/Bookmarks"));
+const StudentLayout = lazy(() => import("@/components/layout/StudentLayout"));
+const ProfileSetup = lazy(() => import("./pages/ProfileSetup"));
+const MessagesPage = lazy(() => import("./pages/MessagesPage"));
+const PublicProfilePage = lazy(() => import("./pages/PublicProfilePage"));
+
+// Alumni pages (lazy loaded)
+const AlumniLayout = lazy(() => import("@/components/layout/AlumniLayout"));
+const AlumniIndex = lazy(() => import("./pages/AlumniIndex"));
+const PostingsPage = lazy(() => import("./pages/PostingsPage"));
+const PostJobPage = lazy(() => import("./pages/PostJobPage"));
+const AddCompany = lazy(() => import("./pages/AddCompany"));
+const CompanyProfilePage = lazy(() => import("./pages/CompanyProfilePage"));
+const EditCompanyProfilePage = lazy(() => import("./pages/EditCompanyProfilePage"));
+const EditMyProfilePage = lazy(() => import("./pages/EditMyProfilePage"));
+const JobApplicantsPage = lazy(() => import("./pages/JobApplicantsPage"));
+
+// Admin pages (lazy loaded - least priority)
+const AdminLayout = lazy(() => import("@/components/admin/AdminLayout"));
+const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
+const CompaniesManagement = lazy(() => import("./pages/admin/CompaniesManagement"));
+const PostingsManagement = lazy(() => import("./pages/admin/PostingsManagement"));
+const ApplicationsManagement = lazy(() => import("./pages/admin/ApplicationsManagement"));
+const TaxonomiesManagement = lazy(() => import("./pages/admin/TaxonomiesManagement"));
+const Analytics = lazy(() => import("./pages/admin/Analytics"));
+const AuditLogs = lazy(() => import("./pages/admin/AuditLogs"));
+const Settings = lazy(() => import("./pages/admin/Settings"));
 /* ---------------------------------------------------------- */
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000, // 5 minutes
+      gcTime: 10 * 60 * 1000, // 10 minutes (formerly cacheTime)
+      retry: (failureCount, error) => {
+        // Don't retry on 4xx errors
+        if (error?.status >= 400 && error?.status < 500) {
+          return false;
+        }
+        return failureCount < 3;
+      },
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: true,
+    },
+    mutations: {
+      retry: 1,
+    },
+  },
+});
+
+// Loading component for lazy-loaded routes
+const PageLoader = () => (
+  <div className="min-h-screen flex items-center justify-center bg-gray-50">
+    <div className="text-center">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+      <p className="text-gray-600">Loading...</p>
+    </div>
+  </div>
+);
 
 export default function App() {
   return (
@@ -68,7 +111,8 @@ export default function App() {
             <Toaster />
             <Sonner />
             <BrowserRouter>
-              <Routes>
+              <Suspense fallback={<PageLoader />}>
+                <Routes>
                 {/* ---------- Student / public routes ---------- */}
                 <Route path="/" element={<Index />} />
                 <Route path="/jobs" element={<Jobs />} />
@@ -194,6 +238,7 @@ export default function App() {
                 {/* ---------------- Catch-all for everything ---------------- */}
                 <Route path="*" element={<NotFound />} />
               </Routes>
+              </Suspense>
             </BrowserRouter>
           </TooltipProvider>
         </AuthProvider>

@@ -37,8 +37,6 @@ export default function OAuthCallback() {
                   email: data.session.user.email,
                   role: role,
                   full_name: data.session.user.user_metadata?.full_name || data.session.user.user_metadata?.name || '',
-                  first_name: data.session.user.user_metadata?.first_name || '',
-                  last_name: data.session.user.user_metadata?.last_name || '',
                 });
 
               if (insertError) throw insertError;

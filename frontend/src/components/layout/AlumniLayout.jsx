@@ -4,7 +4,7 @@ import AppShell from "@/components/shell/AppShell";
 import { navigation } from "@/config/navigation";
 import { Button } from "@/components/ui/button";
 
-export function AlumniLayout() {
+function AlumniLayout() {
   const [headerMeta, setHeaderMeta] = useState({
     title: "Alumni Workspace",
     description: "Monitor postings, applicants, and company presence.",
@@ -27,3 +27,5 @@ export function AlumniLayout() {
     </AppShell>
   );
 }
+
+export default AlumniLayout;

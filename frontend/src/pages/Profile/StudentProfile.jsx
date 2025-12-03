@@ -30,8 +30,8 @@ export default function StudentProfile() {
   });
 
   useEffect(() => {
-    if (profileResponse?.data) {
-      setProfileData(profileResponse.data);
+    if (profileResponse?.data?.profile) {
+      setProfileData(profileResponse.data.profile);
     }
   }, [profileResponse]);
 

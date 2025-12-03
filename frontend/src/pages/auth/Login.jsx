@@ -8,9 +8,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, Eye, EyeOff } from 'lucide-react';
+import { Loader2, Eye, EyeOff, Mail } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { getRoleHome } from '@/lib/auth';
+import { useAuth } from '@/contexts/AuthContext';
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -20,6 +21,7 @@ const loginSchema = z.object({
 export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
   const location = useLocation();
@@ -37,45 +39,49 @@ export default function Login() {
 
   useEffect(() => {
     if (message) {
-      // Clear the message from location state
-      navigate(location.pathname, { replace: true });
+      // Keep the message visible until user interacts with form
+      const timer = setTimeout(() => {
+        navigate(location.pathname, { replace: true, state: {} });
+      }, 5000); // Clear after 5 seconds
+
+      return () => clearTimeout(timer);
     }
   }, [message, navigate, location.pathname]);
+
+  const { login } = useAuth();
 
   const onSubmit = async (data) => {
     setIsLoading(true);
     setError('');
 
     try {
-      const response = await fetch('http://localhost:5004/api/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: data.email,
-          password: data.password,
-        }),
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.message || 'Login failed');
-      }
-
-      // Store token
-      if (result.token) {
-        localStorage.setItem('auth_token', result.token);
-      }
-
+      const user = await login(data.email, data.password);
       // Navigate to role-based home
-      const homeRoute = getRoleHome(result.user.role);
+      const homeRoute = getRoleHome(user.role);
       navigate(homeRoute);
     } catch (err) {
       setError(err.message || 'Login failed. Please try again.');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    setIsGoogleLoading(true);
+    setError('');
+
+    try {
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+        }
+      });
+
+      if (error) throw error;
+    } catch (err) {
+      setError(err.message || 'Google login failed. Please try again.');
+      setIsGoogleLoading(false);
     }
   };
 
@@ -164,6 +170,30 @@ export default function Login() {
                 Sign in
               </Button>
             </form>
+
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-background px-2 text-muted-foreground">Or continue with</span>
+              </div>
+            </div>
+
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              onClick={handleGoogleLogin}
+              disabled={isGoogleLoading}
+            >
+              {isGoogleLoading ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Mail className="mr-2 h-4 w-4" />
+              )}
+              Continue with Google
+            </Button>
 
             <div className="mt-6 text-center">
               <p className="text-sm text-gray-600">

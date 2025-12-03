@@ -184,22 +184,19 @@ class ApiClient {
     const res = await this.request("/student/profile");
     // normalize profile keys to camelCase for frontend
     try {
-      const profile = res?.data?.profile;
+      const profile = res?.profile;
       if (profile) {
         const normalized = {
           ...profile,
           studentId: profile.student_id ?? profile.studentId,
           dateOfBirth: profile.date_of_birth ?? profile.dateOfBirth,
+          universityBranch: profile.university_branch ?? profile.universityBranch,
           gradYear: profile.grad_year ?? profile.gradYear,
+          cgpa: profile.cgpa ?? profile.cgpa,
           resumeUrl: profile.resume_url ?? profile.resumeUrl,
-          desiredRoles: profile.desired_roles ?? profile.desiredRoles,
-          preferredLocations: profile.preferred_locations ?? profile.preferredLocations,
-          currentYear: profile.current_year ?? profile.currentYear,
-          workMode: profile.work_mode ?? profile.workMode,
-          profilePictureUrl: profile.profile_picture_url ?? profile.profilePictureUrl,
           skills: Array.isArray(profile.skills) ? profile.skills : (profile.skills ? String(profile.skills).split(',').map(s=>s.trim()) : []),
         };
-        return { ...res, data: { ...res.data, profile: normalized } };
+        return { ...res, data: { profile: normalized } };
       }
     } catch (e) {
       // ignore normalization errors
@@ -214,23 +211,21 @@ class ApiClient {
   async updateStudentProfile(profileData) {
     // Map frontend camelCase keys to backend snake_case expectations
     const payload = {
-      ...(profileData.name ? { name: profileData.name } : {}),
+      ...(profileData.name ? { full_name: profileData.name } : {}),
       ...(profileData.email ? { email: profileData.email } : {}),
       ...(profileData.phone ? { phone: profileData.phone } : {}),
-      ...(profileData.studentId ? { student_id: profileData.studentId } : {}),
-      ...(profileData.branch ? { branch: profileData.branch } : {}),
-      ...(profileData.currentYear ? { current_year: profileData.currentYear } : {}),
-      ...(profileData.gradYear ? { grad_year: profileData.gradYear } : {}),
+      ...(profileData.rollNo ? { roll_no: profileData.rollNo } : {}),
       ...(profileData.dateOfBirth ? { date_of_birth: profileData.dateOfBirth } : {}),
-      ...(profileData.skills ? { skills: profileData.skills } : {}),
-      ...(profileData.resumeUrl ? { resume_url: profileData.resumeUrl } : {}),
+      ...(profileData.address ? { address: profileData.address } : {}),
+      ...(profileData.universityBranch ? { university_branch: profileData.universityBranch } : {}),
+      ...(profileData.gradYear ? { grad_year: profileData.gradYear } : {}),
       ...(profileData.cgpa ? { cgpa: profileData.cgpa } : {}),
-      ...(profileData.achievements ? { achievements: profileData.achievements } : {}),
+      ...(profileData.resumeUrl ? { resume_url: profileData.resumeUrl } : {}),
+      ...(profileData.skills ? { skills: profileData.skills } : {}),
       ...(profileData.experiences ? { experiences: profileData.experiences } : {}),
-      ...(profileData.desiredRoles ? { desired_roles: profileData.desiredRoles } : {}),
-      ...(profileData.preferredLocations ? { preferred_locations: profileData.preferredLocations } : {}),
-      ...(profileData.workMode ? { work_mode: profileData.workMode } : {}),
       ...(profileData.academics ? { academics: profileData.academics } : {}),
+      ...(profileData.preferences ? { preferences: profileData.preferences } : {}),
+      ...(profileData.consent ? { consent: profileData.consent } : {}),
     };
 
     const res = await this.request("/student/profile", {
@@ -246,13 +241,10 @@ class ApiClient {
           ...profile,
           studentId: profile.student_id ?? profile.studentId,
           dateOfBirth: profile.date_of_birth ?? profile.dateOfBirth,
+          universityBranch: profile.university_branch ?? profile.universityBranch,
           gradYear: profile.grad_year ?? profile.gradYear,
+          cgpa: profile.cgpa ?? profile.cgpa,
           resumeUrl: profile.resume_url ?? profile.resumeUrl,
-          desiredRoles: profile.desired_roles ?? profile.desiredRoles,
-          preferredLocations: profile.preferred_locations ?? profile.preferredLocations,
-          currentYear: profile.current_year ?? profile.currentYear,
-          workMode: profile.work_mode ?? profile.workMode,
-          profilePictureUrl: profile.profile_picture_url ?? profile.profilePictureUrl,
           skills: Array.isArray(profile.skills) ? profile.skills : (profile.skills ? String(profile.skills).split(',').map(s=>s.trim()) : []),
         };
         return { ...res, data: { ...res.data, profile: normalized } };
@@ -322,18 +314,18 @@ class ApiClient {
 
   // ================= Application endpoints =================
   async applyForJob(jobData) {
-    return this.request("/job/apply-job", {
+    return this.request("/job-application/job/apply-job", {
       method: "POST",
       body: JSON.stringify(jobData),
     });
   }
 
   async getAppliedJobs() {
-    return this.request("/job/get-applied-jobs");
+    return this.request("/job-application/job/get-applied-jobs");
   }
 
   async withdrawApplication(jobId) {
-    return this.request(`/job/withdraw-application/${jobId}`, {
+    return this.request(`/job-application/job/withdraw-application/${jobId}`, {
       method: "DELETE",
     });
   }
