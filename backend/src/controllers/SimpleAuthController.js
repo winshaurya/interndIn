@@ -1,10 +1,12 @@
 const db = require('../config/db');
 const jwt = require('jsonwebtoken');
 
-// Simple JWT secret - in production, use environment variable
+// JWT secret - in production, use environment variable
 const JWT_SECRET = process.env.JWT_SECRET || 'your-simple-jwt-secret';
 
-// Generate JWT token
+/**
+ * Generate JWT token for authenticated user
+ */
 const generateToken = (user) => {
   return jwt.sign(
     {
@@ -17,26 +19,51 @@ const generateToken = (user) => {
   );
 };
 
-// Register user
+/**
+ * Register a new user
+ * POST /api/auth/register
+ * Body: { email, password, role, firstName, lastName }
+ */
 const register = async (req, res) => {
   try {
     const { email, password, role, firstName, lastName } = req.body;
 
+    // Validate required fields
     if (!email || !password || !role || !firstName || !lastName) {
       return res.status(400).json({
         success: false,
-        message: 'All fields are required'
+        message: 'All fields are required: email, password, role, firstName, lastName'
       });
     }
 
+    // Validate role
     if (!['student', 'alumni'].includes(role)) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid role'
+        message: 'Role must be either "student" or "alumni"'
       });
     }
 
-    // Use Supabase Auth
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid email format'
+      });
+    }
+
+    // Validate password strength
+    if (password.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must be at least 6 characters long'
+      });
+    }
+
+    console.log('Registering user:', { email, role, firstName, lastName });
+
+    // Register user with Supabase Auth (regular signup)
     const { data, error } = await db.auth.signUp({
       email,
       password,
@@ -51,45 +78,92 @@ const register = async (req, res) => {
     });
 
     if (error) {
+      console.error('Supabase admin create user error:', error);
       return res.status(400).json({
         success: false,
         message: error.message
       });
     }
 
-    // Create user profile
-    if (data.user) {
-      try {
-        await db.from('profiles').insert({
-          id: data.user.id,
-          email,
-          role,
-          first_name: firstName,
-          last_name: lastName,
-          created_at: new Date().toISOString()
+    console.log('User created successfully:', data.user?.id);
+
+    // Manually create profile and role-specific details
+    try {
+      const userId = data.user.id;
+
+      // Insert profile
+      const { error: profileError } = await db
+        .from('profiles')
+        .insert({
+          id: userId,
+          email: email,
+          role: role,
+          full_name: `${firstName} ${lastName}`
         });
-      } catch (profileError) {
-        console.log('Profile creation failed, but continuing:', profileError);
+
+      if (profileError) {
+        console.error('Profile creation error:', profileError);
+        // Try to delete the auth user if profile creation fails
+        await db.auth.admin.deleteUser(userId);
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to create user profile'
+        });
       }
+
+      // Insert role-specific details
+      if (role === 'student') {
+        const { error: studentError } = await db
+          .from('student_details')
+          .insert({ id: userId });
+
+        if (studentError) {
+          console.error('Student details creation error:', studentError);
+        }
+      } else if (role === 'alumni') {
+        const { error: alumniError } = await db
+          .from('alumni_details')
+          .insert({ id: userId });
+
+        if (alumniError) {
+          console.error('Alumni details creation error:', alumniError);
+        }
+      }
+
+    } catch (profileCreationError) {
+      console.error('Profile creation error:', profileCreationError);
+      // Try to delete the auth user if profile creation fails
+      try {
+        await db.auth.admin.deleteUser(data.user.id);
+      } catch (deleteError) {
+        console.error('Failed to cleanup auth user:', deleteError);
+      }
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to create user profile'
+      });
     }
 
+    // Generate JWT token
     const token = generateToken({
       id: data.user.id,
       email: data.user.email,
       role
     });
 
-    res.json({
+    // Return success response
+    res.status(201).json({
       success: true,
-      message: 'Registration successful',
+      message: 'User registered successfully',
       user: {
         id: data.user.id,
         email: data.user.email,
-        role,
-        firstName,
-        lastName
+        role: role,
+        firstName: firstName,
+        lastName: lastName,
+        fullName: `${firstName} ${lastName}`
       },
-      token
+      token: token
     });
 
   } catch (error) {
@@ -102,55 +176,79 @@ const register = async (req, res) => {
   }
 };
 
-// Login user
+/**
+ * Login user
+ * POST /api/auth/login
+ * Body: { email, password }
+ */
 const login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
+    // Validate required fields
     if (!email || !password) {
       return res.status(400).json({
         success: false,
-        message: 'Email and password required'
+        message: 'Email and password are required'
       });
     }
 
-    // Use Supabase Auth
+    console.log('Logging in user:', email);
+
+    // Authenticate with Supabase
     const { data, error } = await db.auth.signInWithPassword({
       email,
       password
     });
 
     if (error) {
+      console.error('Supabase login error:', error);
       return res.status(401).json({
         success: false,
-        message: 'Invalid credentials'
+        message: 'Invalid email or password'
       });
     }
 
-    // Get user profile
-    const { data: profile } = await db
+    // Get user profile from database
+    const { data: profile, error: profileError } = await db
       .from('profiles')
       .select('*')
       .eq('id', data.user.id)
       .single();
 
+    if (profileError) {
+      console.error('Profile fetch error:', profileError);
+      return res.status(500).json({
+        success: false,
+        message: 'User profile not found'
+      });
+    }
+
+    console.log('User logged in successfully:', data.user.id);
+
+    // Generate JWT token
     const token = generateToken({
       id: data.user.id,
       email: data.user.email,
-      role: profile?.role || 'student'
+      role: profile.role
     });
 
+    // Return success response
     res.json({
       success: true,
       message: 'Login successful',
       user: {
         id: data.user.id,
         email: data.user.email,
-        role: profile?.role || 'student',
-        firstName: profile?.first_name || '',
-        lastName: profile?.last_name || ''
+        role: profile.role,
+        fullName: profile.full_name || '',
+        avatarUrl: profile.avatar_url || '',
+        headline: profile.headline || '',
+        about: profile.about || '',
+        isVerified: profile.is_verified || false,
+        createdAt: profile.created_at
       },
-      token
+      token: token
     });
 
   } catch (error) {
@@ -163,19 +261,35 @@ const login = async (req, res) => {
   }
 };
 
-// Get profile
+/**
+ * Get current user profile
+ * GET /api/auth/profile
+ * Headers: Authorization: Bearer <token>
+ */
 const getProfile = async (req, res) => {
   try {
-    // Get user from JWT token
-    const token = req.headers.authorization?.split(' ')[1];
-    if (!token) {
+    // Get token from Authorization header
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return res.status(401).json({
         success: false,
-        message: 'No token provided'
+        message: 'Authorization token required'
       });
     }
 
-    const decoded = jwt.verify(token, JWT_SECRET);
+    const token = authHeader.split(' ')[1];
+
+    // Verify JWT token
+    let decoded;
+    try {
+      decoded = jwt.verify(token, JWT_SECRET);
+    } catch (jwtError) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid or expired token'
+      });
+    }
+
     const userId = decoded.userId;
 
     // Get user profile
@@ -188,8 +302,26 @@ const getProfile = async (req, res) => {
     if (error || !profile) {
       return res.status(404).json({
         success: false,
-        message: 'Profile not found'
+        message: 'User profile not found'
       });
+    }
+
+    // Get role-specific details
+    let details = null;
+    if (profile.role === 'student') {
+      const { data: studentData } = await db
+        .from('student_details')
+        .select('*')
+        .eq('id', userId)
+        .single();
+      details = studentData;
+    } else if (profile.role === 'alumni') {
+      const { data: alumniData } = await db
+        .from('alumni_details')
+        .select('*')
+        .eq('id', userId)
+        .single();
+      details = alumniData;
     }
 
     res.json({
@@ -198,9 +330,14 @@ const getProfile = async (req, res) => {
         id: profile.id,
         email: profile.email,
         role: profile.role,
-        firstName: profile.first_name,
-        lastName: profile.last_name,
-        createdAt: profile.created_at
+        fullName: profile.full_name,
+        avatarUrl: profile.avatar_url,
+        headline: profile.headline,
+        about: profile.about,
+        isVerified: profile.is_verified,
+        createdAt: profile.created_at,
+        updatedAt: profile.updated_at,
+        details: details
       }
     });
 
@@ -208,7 +345,111 @@ const getProfile = async (req, res) => {
     console.error('Get profile error:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to get profile'
+      message: 'Failed to get user profile',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Update user profile
+ * PUT /api/auth/profile
+ * Headers: Authorization: Bearer <token>
+ * Body: { fullName, headline, about, ... }
+ */
+const updateProfile = async (req, res) => {
+  try {
+    // Get token from Authorization header
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authorization token required'
+      });
+    }
+
+    const token = authHeader.split(' ')[1];
+
+    // Verify JWT token
+    let decoded;
+    try {
+      decoded = jwt.verify(token, JWT_SECRET);
+    } catch (jwtError) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid or expired token'
+      });
+    }
+
+    const userId = decoded.userId;
+    const { fullName, headline, about, avatarUrl } = req.body;
+
+    // Update profile
+    const { data: profile, error } = await db
+      .from('profiles')
+      .update({
+        full_name: fullName,
+        headline: headline,
+        about: about,
+        avatar_url: avatarUrl,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', userId)
+      .select()
+      .single();
+
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        message: 'Failed to update profile',
+        error: error.message
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Profile updated successfully',
+      user: {
+        id: profile.id,
+        email: profile.email,
+        role: profile.role,
+        fullName: profile.full_name,
+        avatarUrl: profile.avatar_url,
+        headline: profile.headline,
+        about: profile.about,
+        isVerified: profile.is_verified,
+        updatedAt: profile.updated_at
+      }
+    });
+
+  } catch (error) {
+    console.error('Update profile error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update profile',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Logout user (client-side token removal, but we can log the action)
+ * POST /api/auth/logout
+ */
+const logout = async (req, res) => {
+  try {
+    // In a stateless JWT system, logout is mainly client-side
+    // But we can log the action or perform any cleanup if needed
+    res.json({
+      success: true,
+      message: 'Logged out successfully'
+    });
+  } catch (error) {
+    console.error('Logout error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Logout failed',
+      error: error.message
     });
   }
 };
@@ -216,5 +457,7 @@ const getProfile = async (req, res) => {
 module.exports = {
   register,
   login,
-  getProfile
+  getProfile,
+  updateProfile,
+  logout
 };

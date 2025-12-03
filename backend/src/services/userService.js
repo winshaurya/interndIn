@@ -2,8 +2,8 @@ const db = require('../config/db');
 
 const fetchAppUserProfile = async (userId) => {
   const { data, error } = await db
-    .from('users')
-    .select('id, email, role, status, created_at, updated_at')
+    .from('profiles')
+    .select('id, email, role, is_verified, created_at, updated_at')
     .eq('id', userId)
     .maybeSingle();
 
@@ -29,11 +29,11 @@ const ensureAppUserRecord = async (supabaseUser, options = {}) => {
     id: supabaseUser.id,
     email: supabaseUser.email,
     role: roleHint,
-    status: options.status || 'active',
+    is_verified: options.is_verified || false,
   };
 
   const { data: inserted, error: insertError } = await db
-    .from('users')
+    .from('profiles')
     .insert(insertPayload)
     .select('*')
     .single();
@@ -49,7 +49,7 @@ const buildUserResponse = (supabaseUser, appUser) => ({
   id: supabaseUser.id,
   email: supabaseUser.email,
   role: (appUser?.role || supabaseUser.user_metadata?.role || 'student').toLowerCase(),
-  status: appUser?.status || 'active',
+  is_verified: appUser?.is_verified || false,
   created_at: appUser?.created_at || supabaseUser.created_at,
   updated_at: appUser?.updated_at || supabaseUser.updated_at,
 });

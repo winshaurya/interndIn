@@ -132,10 +132,13 @@ const db = {
       remove: async () => { throw new Error('Supabase storage not configured'); },
     })
   },
-  auth: adminClient ? adminClient.auth : {
+  auth: anonClient ? anonClient.auth : {
     signUp: async () => { throw new Error('Supabase auth not configured'); },
     signInWithPassword: async () => { throw new Error('Supabase auth not configured'); },
-    admin: { deleteUser: async () => { throw new Error('Supabase admin not configured'); } }
+    signOut: async () => { throw new Error('Supabase auth not configured'); },
+    getUser: async () => { throw new Error('Supabase auth not configured'); },
+    getSession: async () => { throw new Error('Supabase auth not configured'); },
+    admin: adminClient ? adminClient.auth.admin : { deleteUser: async () => { throw new Error('Supabase admin not configured'); } }
   },
   channel: (...args) => {
     if (!adminClient) throw new Error('Supabase admin client not configured (SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY missing)');

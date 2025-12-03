@@ -162,12 +162,16 @@ CREATE TRIGGER update_alumni_time BEFORE UPDATE ON alumni_details FOR EACH ROW E
 CREATE TRIGGER update_companies_time BEFORE UPDATE ON companies FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
 CREATE TRIGGER update_jobs_time BEFORE UPDATE ON jobs FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
 
--- B. User Signup Handler (Google/Email -> Profile)
+-- User Signup Handler (Google/Email -> Profile)
 CREATE OR REPLACE FUNCTION public.handle_new_user() RETURNS TRIGGER AS $$
 DECLARE
   determined_role user_role;
 BEGIN
-  determined_role := COALESCE((new.raw_user_meta_data->>'role')::user_role, 'student');
+  determined_role := COALESCE(
+    (new.raw_user_meta_data->>'role')::user_role,
+    (new.user_metadata->>'role')::user_role,
+    'student'
+  );
   
   INSERT INTO public.profiles (id, email, full_name, avatar_url, role)
   VALUES (new.id, new.email, new.raw_user_meta_data->>'full_name', new.raw_user_meta_data->>'avatar_url', determined_role);
@@ -197,7 +201,16 @@ ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
 
 -- Basic Policies
 CREATE POLICY "Public profiles" ON profiles FOR SELECT USING (true);
+CREATE POLICY "Users can insert their own profile" ON profiles FOR INSERT WITH CHECK (auth.uid() = id);
 CREATE POLICY "Edit own profile" ON profiles FOR UPDATE USING (auth.uid() = id);
+
+CREATE POLICY "Users can insert their own student details" ON student_details FOR INSERT WITH CHECK (auth.uid() = id);
+CREATE POLICY "Users can view their own student details" ON student_details FOR SELECT USING (auth.uid() = id);
+CREATE POLICY "Users can update their own student details" ON student_details FOR UPDATE USING (auth.uid() = id);
+
+CREATE POLICY "Users can insert their own alumni details" ON alumni_details FOR INSERT WITH CHECK (auth.uid() = id);
+CREATE POLICY "Users can view their own alumni details" ON alumni_details FOR SELECT USING (auth.uid() = id);
+CREATE POLICY "Users can update their own alumni details" ON alumni_details FOR UPDATE USING (auth.uid() = id);
 
 -- Company/Job Policies
 CREATE POLICY "View companies" ON companies FOR SELECT USING (true);
@@ -251,5 +264,14 @@ CREATE INDEX IF NOT EXISTS idx_conversations_participants ON public.conversation
 CREATE INDEX IF NOT EXISTS idx_messages_conversation ON public.messages(conversation_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_user ON public.notifications(user_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_unread ON public.notifications(user_id) WHERE is_read = false;
+
+COMMIT;
+BEGIN;
+
+-- Add missing columns to 'companies' to match code expectations
+ALTER TABLE public.companies 
+ADD COLUMN IF NOT EXISTS industry TEXT,
+ADD COLUMN IF NOT EXISTS company_size TEXT,
+ADD COLUMN IF NOT EXISTS document_url TEXT;
 
 COMMIT;

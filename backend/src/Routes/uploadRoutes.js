@@ -61,9 +61,9 @@ router.post('/resume', authenticate, upload.single('resume'), async (req, res) =
     // Update user's resume URL in database
     const db = require('../config/db');
     const { error: updateError } = await db
-      .from('student_profiles')
+      .from('student_details')
       .update({ resume_url: url })
-      .eq('user_id', userId);
+      .eq('id', userId);
 
     if (updateError) {
       console.error('Database update error:', updateError);

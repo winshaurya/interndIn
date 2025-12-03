@@ -28,6 +28,7 @@ import AlumniSignUp from "./pages/auth/AlumniSignUp";
 import StudentLogin from "./pages/auth/StudentLogin";
 import StudentSignUp from "./pages/auth/StudentSignUp";
 import ResetPassword from "./pages/auth/ResetPassword";
+import ResetPasswordConfirm from "./pages/auth/ResetPasswordConfirm";
 import OAuthCallback from "./pages/auth/OAuthCallback";
 import StudentDashboard from "./components/StudentDashboard";
 import StudentProfile from "./pages/Profile/StudentProfile";
@@ -127,6 +128,14 @@ export default function App() {
                   element={
                     <PublicRoute>
                       <ResetPassword />
+                    </PublicRoute>
+                  }
+                />
+                <Route
+                  path="/reset-password/confirm"
+                  element={
+                    <PublicRoute>
+                      <ResetPasswordConfirm />
                     </PublicRoute>
                   }
                 />

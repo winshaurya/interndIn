@@ -11,6 +11,7 @@ import { apiClient } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import DataState from "@/components/common/DataState";
 import ApplicationHistory from "@/components/ApplicationHistory";
+import { motion } from "framer-motion";
 
 
 
@@ -86,8 +87,27 @@ export default function StudentDashboard() {
   }
 
   return (
-    <div className="space-y-8">
-      <section className="grid gap-6 lg:grid-cols-[2fr,1fr]">
+    <motion.div
+      className="space-y-8"
+      initial="hidden"
+      animate="visible"
+      variants={{
+        hidden: { opacity: 0 },
+        visible: {
+          opacity: 1,
+          transition: {
+            staggerChildren: 0.2
+          }
+        }
+      }}
+    >
+      <motion.section
+        className="grid gap-6 lg:grid-cols-[2fr,1fr]"
+        variants={{
+          hidden: { opacity: 0, y: 20 },
+          visible: { opacity: 1, y: 0 }
+        }}
+      >
         <Card className="border-border/60 shadow-glow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
             <div>
@@ -141,9 +161,15 @@ export default function StudentDashboard() {
             ))}
           </CardContent>
         </Card>
-      </section>
+      </motion.section>
 
-      <section className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+      <motion.section
+        className="grid gap-6 md:grid-cols-2 xl:grid-cols-4"
+        variants={{
+          hidden: { opacity: 0, y: 20 },
+          visible: { opacity: 1, y: 0 }
+        }}
+      >
         {["Applications", "Interviews", "Offers", "Bookmarks"].map((label, index) => {
           const value = [
             dashboardResponse?.applications_count,
@@ -153,20 +179,35 @@ export default function StudentDashboard() {
           ][index] || 0;
           const Icon = [FileText, Target, Sparkles, BookMarked][index];
           return (
-            <Card key={label} className="border-border/60">
-              <CardContent className="flex items-center justify-between p-5">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">{label}</p>
-                  <p className="text-2xl font-semibold">{value}</p>
-                </div>
-                <Icon className="h-5 w-5 text-primary" />
-              </CardContent>
-            </Card>
+            <motion.div
+              key={label}
+              variants={{
+                hidden: { opacity: 0, scale: 0.8 },
+                visible: { opacity: 1, scale: 1 }
+              }}
+              transition={{ delay: index * 0.1 }}
+            >
+              <Card className="border-border/60">
+                <CardContent className="flex items-center justify-between p-5">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">{label}</p>
+                    <p className="text-2xl font-semibold">{value}</p>
+                  </div>
+                  <Icon className="h-5 w-5 text-primary" />
+                </CardContent>
+              </Card>
+            </motion.div>
           );
         })}
-      </section>
+      </motion.section>
 
-      <section className="grid gap-6 lg:grid-cols-[2fr,1fr]">
+      <motion.section
+        className="grid gap-6 lg:grid-cols-[2fr,1fr]"
+        variants={{
+          hidden: { opacity: 0, y: 20 },
+          visible: { opacity: 1, y: 0 }
+        }}
+      >
         <Card className="border-border/60">
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
@@ -189,10 +230,27 @@ export default function StudentDashboard() {
                 description="Update your skills to receive curated roles."
               />
             ) : (
-              <div className="grid gap-4">
-                {jobs.slice(0, 4).map((job) => (
-                  <div
+              <motion.div
+                className="grid gap-4"
+                initial="hidden"
+                animate="visible"
+                variants={{
+                  hidden: { opacity: 0 },
+                  visible: {
+                    opacity: 1,
+                    transition: {
+                      staggerChildren: 0.1
+                    }
+                  }
+                }}
+              >
+                {jobs.slice(0, 4).map((job, index) => (
+                  <motion.div
                     key={job.id || job.job_id}
+                    variants={{
+                      hidden: { opacity: 0, x: -20 },
+                      visible: { opacity: 1, x: 0 }
+                    }}
                     className="rounded-xl border p-4 hover:border-primary/60 hover:bg-primary/5 transition-colors"
                   >
                     <div className="flex items-center justify-between">
@@ -213,9 +271,9 @@ export default function StudentDashboard() {
                       </Button>
                       <Button size="sm">Apply now</Button>
                     </div>
-                  </div>
+                  </motion.div>
                 ))}
-              </div>
+              </motion.div>
             )}
           </CardContent>
         </Card>
@@ -225,20 +283,26 @@ export default function StudentDashboard() {
             <CardTitle className="text-base">Journey timeline</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {(dashboardResponse?.timeline || []).map((item) => (
-              <div key={item.title} className="flex items-start gap-3">
+            {(dashboardResponse?.timeline || []).map((item, index) => (
+              <motion.div
+                key={item.title}
+                className="flex items-start gap-3"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: index * 0.1 }}
+              >
                 <div className={`mt-1 h-2.5 w-2.5 rounded-full ${item.status === "completed" ? "bg-primary" : "bg-muted-foreground/60"}`} />
                 <div>
                   <p className="text-sm font-medium">{item.title}</p>
                   <p className="text-xs text-muted-foreground">{item.date}</p>
                 </div>
-              </div>
+              </motion.div>
             ))}
           </CardContent>
         </Card>
-      </section>
+      </motion.section>
 
       <ApplicationHistory />
-    </div>
+    </motion.div>
   );
 }

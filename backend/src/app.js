@@ -30,37 +30,44 @@ const PORT = process.env.PORT || 5004;
 // Start server only when script is run directly (keeps module testable)
 if (require.main === module) {
   const server = app.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`🚀 Server running on http://localhost:${PORT}`);
+    // Run Supabase connection check after server starts
+    checkSupabaseConnection();
   });
+}
 
-  // Test Supabase connection after server starts
-  setTimeout(async () => {
-    try {
-      console.log('🔍 Testing Supabase connection...');
+// Function to check Supabase connection and setup
+async function checkSupabaseConnection() {
+  try {
+    console.log('🔍 Testing Supabase connection...');
 
-      // Simple test - just try to get the client status
-      const { data, error } = await db.from('users').select('count').limit(1).single();
+    // Test database connection by querying profiles table
+    const { data, error } = await db.from('profiles').select('id').limit(1);
 
-      if (error) {
-        console.log('❌ Supabase connection failed:', error.message);
-        console.log('🔍 Error details:', error);
-      } else {
-        console.log('✅ Connected to Supabase successfully');
-      }
-
-      // Ensure storage bucket exists
-      console.log('🔍 Checking Supabase Storage bucket...');
-      const bucketReady = await ensureBucketExists('uploads');
-      if (bucketReady) {
-        console.log('✅ Supabase Storage bucket ready');
-      } else {
-        console.log('❌ Failed to setup Supabase Storage bucket');
-      }
-    } catch (err) {
-      console.log('❌ Failed to connect to Supabase:', err.message);
-      console.log('🔍 Error details:', err);
+    if (error) {
+      console.log('❌ Supabase database connection failed:', error.message);
+      console.log('🔍 Error details:', error);
+      return false;
+    } else {
+      console.log('✅ Supabase database connected successfully');
     }
-  }, 1000);
+
+    // Check and ensure storage bucket exists
+    console.log('🔍 Checking Supabase Storage bucket...');
+    const bucketReady = await ensureBucketExists('uploads');
+    if (bucketReady) {
+      console.log('✅ Supabase Storage bucket "uploads" is ready');
+    } else {
+      console.log('❌ Failed to setup Supabase Storage bucket "uploads"');
+    }
+
+    console.log('🎉 Supabase setup complete!');
+    return true;
+  } catch (err) {
+    console.log('❌ Failed to connect to Supabase:', err.message);
+    console.log('🔍 Error details:', err);
+    return false;
+  }
 }
 
 

@@ -88,10 +88,10 @@ const upsertProfile = async (req, res) => {
     // Handle company
     const companyUpdate = {};
     if (website !== undefined) companyUpdate.website = website;
-    if (industry !== undefined) companyUpdate.description = industry; // map
-    if (company_size !== undefined) companyUpdate.location = company_size;
+    if (industry !== undefined) companyUpdate.industry = industry;
+    if (company_size !== undefined) companyUpdate.company_size = company_size;
     if (about !== undefined) companyUpdate.description = about;
-    if (linkedin !== undefined) companyUpdate.logo_url = linkedin;
+    if (linkedin !== undefined) companyUpdate.document_url = linkedin;
 
     // Check if company exists
     const { data: existingCompany, error: fetchCompanyError } = await db
@@ -159,8 +159,10 @@ const createOrUpdateCompany = async (req, res) => {
       name: name || null,
       website: website || null,
       description: about || null,
-      location: company_size || null,
-      logo_url: document_url || null,
+      location: null, // location is separate from company_size
+      industry: industry || null,
+      company_size: company_size || null,
+      document_url: document_url || null,
       updated_at: new Date().toISOString(),
     };
 

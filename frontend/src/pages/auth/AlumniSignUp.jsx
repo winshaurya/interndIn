@@ -46,17 +46,33 @@ export default function AlumniSignUp() {
     setError('');
 
     try {
-      const { confirmPassword, ...userData } = data;
-      await registerUser({
-        ...userData,
-        role: 'alumni',
-        name: `${data.firstName} ${data.lastName}`,
+      const response = await fetch('http://localhost:5004/api/auth/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: data.email,
+          password: data.password,
+          role: 'alumni',
+          firstName: data.firstName,
+          lastName: data.lastName,
+        }),
       });
-      navigate('/alumni/login', {
-        state: {
-          message: 'Alumni account created successfully! Please sign in.'
-        }
-      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.message || 'Registration failed');
+      }
+
+      // Store the token if provided
+      if (result.token) {
+        localStorage.setItem('auth_token', result.token);
+      }
+
+      // Navigate to alumni dashboard
+      navigate('/alumni');
     } catch (err) {
       setError(err.message || 'Registration failed. Please try again.');
     } finally {

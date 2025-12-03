@@ -10,9 +10,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import JobCard from "@/components/JobCard";
 import JobFilters from "@/components/JobFilters";
-import Header from "@/components/Header";
 import { apiClient } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
+import { motion } from "framer-motion";
 
 export default function Jobs() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -120,8 +120,6 @@ export default function Jobs() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header />
-
       {/* Header Section */}
       <div className="bg-primary text-primary-foreground py-8">
         <div className="max-w-7xl mx-auto px-6">
@@ -220,7 +218,20 @@ export default function Jobs() {
             )}
 
             {/* Jobs Grid */}
-            <div className="grid gap-6">
+            <motion.div
+              className="grid gap-6"
+              initial="hidden"
+              animate="visible"
+              variants={{
+                hidden: { opacity: 0 },
+                visible: {
+                  opacity: 1,
+                  transition: {
+                    staggerChildren: 0.1
+                  }
+                }
+              }}
+            >
               {isLoading ? (
                 <div className="flex items-center justify-center py-12">
                   <Loader2 className="h-8 w-8 animate-spin" />
@@ -243,22 +254,30 @@ export default function Jobs() {
                   )}
                 </div>
               ) : (
-                jobs.map((job) => (
-                  <JobCard
+                jobs.map((job, index) => (
+                  <motion.div
                     key={job.job_id}
-                    id={job.job_id}
-                    title={job.job_title}
-                    company={job.company_name || "Company"}
-                    location={job.location || "Remote"}
-                    type={job.employment_type || "Full-time"}
-                    description={job.job_description}
-                    alumniName={job.alumni_name}
-                    alumniDesignation={job.alumni_designation}
-                    createdAt={job.created_at}
-                  />
+                    variants={{
+                      hidden: { opacity: 0, y: 20 },
+                      visible: { opacity: 1, y: 0 }
+                    }}
+                    transition={{ duration: 0.5 }}
+                  >
+                    <JobCard
+                      id={job.job_id}
+                      title={job.job_title}
+                      company={job.company_name || "Company"}
+                      location={job.location || "Remote"}
+                      type={job.employment_type || "Full-time"}
+                      description={job.job_description}
+                      alumniName={job.alumni_name}
+                      alumniDesignation={job.alumni_designation}
+                      createdAt={job.created_at}
+                    />
+                  </motion.div>
                 ))
               )}
-            </div>
+            </motion.div>
           </div>
         </div>
       </div>

@@ -1,11 +1,11 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, Briefcase, TrendingUp, ArrowRight, CheckCircle } from "lucide-react";
+import { Users, Briefcase, TrendingUp, ArrowRight, CheckCircle, Sparkles, Zap, Target } from "lucide-react";
 import GraduationCap from '@/components/icons/GraduationCap';
 import { Link } from "react-router-dom";
-import Header from "@/components/Header";
 import { useState, useEffect } from "react";
 import { apiClient } from "@/lib/api";
+import { motion } from "framer-motion";
 
 const Index = () => {
   const [features, setFeatures] = useState([]);
@@ -56,27 +56,75 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-gradient-subtle">
-      <Header />
-
       {/* Hero Section */}
       <section className="py-16 md:py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <div className="max-w-3xl mx-auto">
-            <div className="flex items-center justify-center gap-8 mb-6">
+          <motion.div
+            className="max-w-3xl mx-auto"
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8 }}
+          >
+            <motion.div
+              className="flex items-center justify-center gap-8 mb-6"
+              initial={{ scale: 0.8 }}
+              animate={{ scale: 1 }}
+              transition={{ delay: 0.2, duration: 0.6 }}
+            >
               <div className="text-right text-4xl md:text-6xl font-bold font-heading">
-                <div>hire</div>
-                <div>the</div>
+                <motion.div
+                  initial={{ x: -50, opacity: 0 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  transition={{ delay: 0.4, duration: 0.6 }}
+                >
+                  hire
+                </motion.div>
+                <motion.div
+                  initial={{ x: -50, opacity: 0 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  transition={{ delay: 0.5, duration: 0.6 }}
+                >
+                  the
+                </motion.div>
               </div>
-              <div className="w-px bg-black h-20 md:h-24"></div>
+              <motion.div
+                className="w-px bg-foreground h-20 md:h-24"
+                initial={{ scaleY: 0 }}
+                animate={{ scaleY: 1 }}
+                transition={{ delay: 0.6, duration: 0.8 }}
+              />
               <div className="text-left text-4xl md:text-6xl font-bold font-heading">
-                <div className="bg-gradient-primary bg-clip-text text-transparent">Next Gen</div>
-                <div>engineers</div>
+                <motion.div
+                  className="bg-gradient-primary bg-clip-text text-transparent"
+                  initial={{ x: 50, opacity: 0 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  transition={{ delay: 0.7, duration: 0.6 }}
+                >
+                  Next Gen
+                </motion.div>
+                <motion.div
+                  initial={{ x: 50, opacity: 0 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  transition={{ delay: 0.8, duration: 0.6 }}
+                >
+                  engineers
+                </motion.div>
               </div>
-            </div>
-            <p className="text-xl text-muted-foreground mb-8">
+            </motion.div>
+            <motion.p
+              className="text-xl text-muted-foreground mb-8"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 1, duration: 0.6 }}
+            >
               Connect with alumni, discover exclusive job opportunities, and accelerate your career with the power of our network.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center mb-4">
+            </motion.p>
+            <motion.div
+              className="flex flex-col sm:flex-row gap-4 justify-center mb-4"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 1.2, duration: 0.6 }}
+            >
               <Button variant="gradient" size="lg" asChild>
                 <Link to="/signup">
                   Join as Student
@@ -88,8 +136,8 @@ const Index = () => {
                   Join as Alumni
                 </Link>
               </Button>
-            </div>
-          </div>
+            </motion.div>
+          </motion.div>
         </div>
       </section>
 
@@ -105,26 +153,53 @@ const Index = () => {
             </p>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <motion.div
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            variants={{
+              hidden: { opacity: 0 },
+              visible: {
+                opacity: 1,
+                transition: {
+                  staggerChildren: 0.2
+                }
+              }
+            }}
+          >
             {features.map((feature, index) => {
               const Icon = getIcon(feature.icon);
               return (
-                <Card key={index} className="text-center hover:shadow-lg transition-shadow">
-                  <CardHeader>
-                    <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center mx-auto mb-4">
-                      <Icon className="w-6 h-6 text-primary" />
-                    </div>
-                    <CardTitle className="text-xl">{feature.title}</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <CardDescription className="text-base">
-                      {feature.description}
-                    </CardDescription>
-                  </CardContent>
-                </Card>
+                <motion.div
+                  key={index}
+                  variants={{
+                    hidden: { opacity: 0, y: 50 },
+                    visible: { opacity: 1, y: 0 }
+                  }}
+                  transition={{ duration: 0.6 }}
+                >
+                  <Card className="text-center hover:shadow-lg transition-shadow h-full">
+                    <CardHeader>
+                      <motion.div
+                        className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center mx-auto mb-4"
+                        whileHover={{ scale: 1.1 }}
+                        transition={{ type: "spring", stiffness: 300 }}
+                      >
+                        <Icon className="w-6 h-6 text-primary" />
+                      </motion.div>
+                      <CardTitle className="text-xl">{feature.title}</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <CardDescription className="text-base">
+                        {feature.description}
+                      </CardDescription>
+                    </CardContent>
+                  </Card>
+                </motion.div>
               );
             })}
-          </div>
+          </motion.div>
         </div>
       </section>
 

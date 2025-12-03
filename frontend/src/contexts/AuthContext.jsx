@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { apiClient } from '@/lib/api';
+import { supabase } from '@/lib/supabase';
+import { getRoleHome } from '@/lib/auth';
 
 const AuthContext = createContext();
 
@@ -19,102 +20,185 @@ export const AuthProvider = ({ children }) => {
   // Initialize auth state on mount
   useEffect(() => {
     const initializeAuth = async () => {
-      const token = localStorage.getItem('accessToken');
-      if (token) {
-        try {
-          // Verify token by fetching profile
-          const response = await apiClient.request('/auth/profile');
-          setUser(response.user);
-          setIsAuthenticated(true);
-        } catch (error) {
-          console.error('Token verification failed:', error);
-          localStorage.removeItem('accessToken');
-          localStorage.removeItem('refreshToken');
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+
+        if (error) {
+          console.error('Session error:', error);
+        } else if (session) {
+          await loadUserProfile(session.user);
         }
+      } catch (error) {
+        console.error('Auth initialization error:', error);
+      } finally {
+        setIsLoading(false);
       }
-      setIsLoading(false);
     };
 
     initializeAuth();
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (session) {
+          await loadUserProfile(session.user);
+        } else {
+          setUser(null);
+          setIsAuthenticated(false);
+        }
+      }
+    );
+
+    return () => subscription.unsubscribe();
   }, []);
+
+  const loadUserProfile = async (authUser) => {
+    try {
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', authUser.id)
+        .single();
+
+      if (error) {
+        // If profile doesn't exist, create it
+        if (error.code === 'PGRST116') {
+          const role = authUser.user_metadata?.role || 'student';
+          const { error: insertError } = await supabase
+            .from('profiles')
+            .insert({
+              id: authUser.id,
+              email: authUser.email,
+              role: role,
+              full_name: authUser.user_metadata?.full_name || `${authUser.user_metadata?.first_name || ''} ${authUser.user_metadata?.last_name || ''}`.trim() || '',
+            });
+
+          if (insertError) {
+            console.error('Profile creation error:', insertError);
+            throw insertError;
+          }
+
+          // Create role-specific details
+          if (role === 'student') {
+            await supabase.from('student_details').insert({ id: authUser.id });
+          } else if (role === 'alumni') {
+            await supabase.from('alumni_details').insert({ id: authUser.id });
+          }
+
+          // Retry loading profile
+          const { data: newProfile, error: newError } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', authUser.id)
+            .single();
+
+          if (newError) throw newError;
+          profile = newProfile;
+        } else {
+          throw error;
+        }
+      }
+
+      const userData = {
+        id: authUser.id,
+        email: authUser.email,
+        role: profile.role,
+        fullName: profile.full_name || '',
+        avatarUrl: profile.avatar_url || '',
+        headline: profile.headline || '',
+        about: profile.about || '',
+        isVerified: profile.is_verified || false,
+      };
+
+      setUser(userData);
+      setIsAuthenticated(true);
+    } catch (error) {
+      console.error('Profile load error:', error);
+      // If profile creation/loading fails, set basic user data
+      setUser({
+        id: authUser.id,
+        email: authUser.email,
+        role: authUser.user_metadata?.role || 'student',
+        fullName: authUser.user_metadata?.full_name || '',
+      });
+      setIsAuthenticated(true);
+    }
+  };
 
   const login = async (email, password) => {
     try {
-      const response = await apiClient.request('/auth/login', {
-        method: 'POST',
-        body: JSON.stringify({ email, password })
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
       });
 
-      const { user: userData, token } = response;
+      if (error) throw error;
 
-      // Store token
-      localStorage.setItem('accessToken', token);
-
-      // Update state
-      setUser(userData);
-      setIsAuthenticated(true);
-
-      return userData;
+      // Profile will be loaded via auth state change listener
+      return data.user;
     } catch (error) {
       console.error('Login error:', error);
-      throw new Error(error.response?.data?.message || 'Login failed');
+      throw new Error(error.message || 'Login failed');
     }
   };
 
   const register = async (userData) => {
     try {
-      const response = await apiClient.request('/auth/register', {
-        method: 'POST',
-        body: JSON.stringify(userData)
+      const { data, error } = await supabase.auth.signUp({
+        email: userData.email,
+        password: userData.password,
+        options: {
+          data: {
+            first_name: userData.firstName,
+            last_name: userData.lastName,
+            role: userData.role,
+            full_name: `${userData.firstName} ${userData.lastName}`
+          }
+        }
       });
-      return response;
+
+      if (error) {
+        console.error('Supabase signup error:', error);
+        throw new Error(error.message || 'Registration failed');
+      }
+
+      console.log('User registered successfully:', data.user?.id);
+      return data;
     } catch (error) {
       console.error('Registration error:', error);
-      throw new Error(error.response?.data?.message || 'Registration failed');
+      throw new Error(error.message || 'Registration failed');
     }
   };
 
-  const logout = () => {
-    // Clear tokens
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('refreshToken');
-
-    // Clear state
-    setUser(null);
-    setIsAuthenticated(false);
-  };
-
-  const refreshAccessToken = async () => {
+  const logout = async () => {
     try {
-      const refreshToken = localStorage.getItem('refreshToken');
-      if (!refreshToken) {
-        throw new Error('No refresh token available');
-      }
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
 
-      const response = await api.post('/auth/refresh', { refreshToken });
-
-      const { tokens } = response.data;
-
-      // Update stored tokens
-      localStorage.setItem('accessToken', tokens.accessToken);
-      localStorage.setItem('refreshToken', tokens.refreshToken);
-
-      return tokens.accessToken;
+      setUser(null);
+      setIsAuthenticated(false);
     } catch (error) {
-      console.error('Token refresh error:', error);
-      logout(); // Clear auth state if refresh fails
+      console.error('Logout error:', error);
       throw error;
     }
   };
 
   const updateProfile = async (profileData) => {
     try {
-      const response = await api.put('/profile', profileData);
-      setUser(prev => ({ ...prev, ...response.data.user }));
-      return response.data;
+      const { data, error } = await supabase
+        .from('profiles')
+        .update(profileData)
+        .eq('id', user.id)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      setUser(prev => ({ ...prev, ...data }));
+      return data;
     } catch (error) {
       console.error('Profile update error:', error);
-      throw new Error(error.response?.data?.message || 'Profile update failed');
+      throw new Error(error.message || 'Profile update failed');
     }
   };
 
@@ -125,7 +209,6 @@ export const AuthProvider = ({ children }) => {
     login,
     register,
     logout,
-    refreshAccessToken,
     updateProfile,
   };
 

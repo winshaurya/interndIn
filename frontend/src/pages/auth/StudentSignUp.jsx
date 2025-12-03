@@ -46,17 +46,33 @@ export default function StudentSignUp() {
     setError('');
 
     try {
-      const { confirmPassword, ...userData } = data;
-      await registerUser({
-        ...userData,
-        role: 'student',
-        name: `${data.firstName} ${data.lastName}`,
+      const response = await fetch('http://localhost:5004/api/auth/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: data.email,
+          password: data.password,
+          role: 'student',
+          firstName: data.firstName,
+          lastName: data.lastName,
+        }),
       });
-      navigate('/student/login', {
-        state: {
-          message: 'Student account created successfully! Please sign in.'
-        }
-      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.message || 'Registration failed');
+      }
+
+      // Store the token if provided
+      if (result.token) {
+        localStorage.setItem('auth_token', result.token);
+      }
+
+      // Navigate to student dashboard
+      navigate('/student');
     } catch (err) {
       setError(err.message || 'Registration failed. Please try again.');
     } finally {

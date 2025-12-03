@@ -1,45 +1,79 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, CheckCircle, XCircle } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/lib/supabase';
+import { getRoleHome } from '@/lib/auth';
 
 export default function OAuthCallback() {
   const [status, setStatus] = useState('loading'); // 'loading', 'success', 'error'
   const [message, setMessage] = useState('');
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const { handleOAuthCallback } = useAuth();
 
   useEffect(() => {
     const handleCallback = async () => {
       try {
-        const code = searchParams.get('code');
-        const state = searchParams.get('state');
-        const error = searchParams.get('error');
+        const { data, error } = await supabase.auth.getSession();
 
-        if (error) {
-          setStatus('error');
-          setMessage(`Authentication failed: ${error}`);
-          return;
+        if (error) throw error;
+
+        if (data.session) {
+          // Get user profile
+          const { data: profile, error: profileError } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', data.session.user.id)
+            .single();
+
+          if (profileError) {
+            // Profile might not exist for new Google users, create it
+            if (profileError.code === 'PGRST116') {
+              const role = data.session.user.user_metadata?.role || 'student';
+              const { error: insertError } = await supabase
+                .from('profiles')
+                .insert({
+                  id: data.session.user.id,
+                  email: data.session.user.email,
+                  role: role,
+                  full_name: data.session.user.user_metadata?.full_name || data.session.user.user_metadata?.name || '',
+                  first_name: data.session.user.user_metadata?.first_name || '',
+                  last_name: data.session.user.user_metadata?.last_name || '',
+                });
+
+              if (insertError) throw insertError;
+
+              // Create role-specific details
+              if (role === 'student') {
+                await supabase.from('student_details').insert({ id: data.session.user.id });
+              } else if (role === 'alumni') {
+                await supabase.from('alumni_details').insert({ id: data.session.user.id });
+              }
+
+              // Navigate to profile setup
+              setStatus('success');
+              setMessage('Account created successfully! Setting up your profile...');
+              setTimeout(() => {
+                navigate('/profile/setup', { replace: true });
+              }, 2000);
+              return;
+            }
+            throw profileError;
+          }
+
+          // Store session info
+          localStorage.setItem('supabase_session', JSON.stringify(data.session));
+
+          // Navigate to role-based home
+          const homeRoute = getRoleHome(profile.role);
+          setStatus('success');
+          setMessage('Authentication successful! Redirecting...');
+          setTimeout(() => {
+            navigate(homeRoute, { replace: true });
+          }, 2000);
+        } else {
+          throw new Error('No session found');
         }
-
-        if (!code) {
-          setStatus('error');
-          setMessage('No authorization code received');
-          return;
-        }
-
-        // Handle the OAuth callback
-        await handleOAuthCallback({ code, state });
-        setStatus('success');
-        setMessage('Authentication successful! Redirecting...');
-
-        // Redirect after a short delay
-        setTimeout(() => {
-          navigate('/', { replace: true });
-        }, 2000);
 
       } catch (err) {
         console.error('OAuth callback error:', err);
@@ -49,7 +83,7 @@ export default function OAuthCallback() {
     };
 
     handleCallback();
-  }, [searchParams, handleOAuthCallback, navigate]);
+  }, [navigate]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
@@ -61,38 +95,38 @@ export default function OAuthCallback() {
             {status === 'error' && 'Authentication Failed'}
           </CardTitle>
           <CardDescription className="text-center">
-            {status === 'loading' && 'Please wait while we complete your authentication.'}
-            {status === 'success' && 'You have been successfully authenticated.'}
-            {status === 'error' && 'There was a problem with your authentication.'}
+            {status === 'loading' && 'Please wait while we complete your authentication'}
+            {status === 'success' && 'You will be redirected shortly'}
+            {status === 'error' && 'There was a problem with your authentication'}
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="text-center space-y-4">
-            {status === 'loading' && (
-              <Loader2 className="mx-auto h-12 w-12 animate-spin text-blue-500" />
-            )}
-            {status === 'success' && (
-              <CheckCircle className="mx-auto h-12 w-12 text-green-500" />
-            )}
-            {status === 'error' && (
-              <XCircle className="mx-auto h-12 w-12 text-red-500" />
-            )}
+        <CardContent className="flex flex-col items-center space-y-4">
+          {status === 'loading' && (
+            <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+          )}
+          {status === 'success' && (
+            <CheckCircle className="h-8 w-8 text-green-600" />
+          )}
+          {status === 'error' && (
+            <XCircle className="h-8 w-8 text-red-600" />
+          )}
 
-            {message && (
-              <Alert variant={status === 'error' ? 'destructive' : 'default'}>
-                <AlertDescription>{message}</AlertDescription>
-              </Alert>
-            )}
+          {message && (
+            <Alert variant={status === 'error' ? 'destructive' : 'default'}>
+              <AlertDescription>{message}</AlertDescription>
+            </Alert>
+          )}
 
-            {status === 'error' && (
+          {status === 'error' && (
+            <div className="text-center">
               <button
                 onClick={() => navigate('/login')}
-                className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition-colors"
+                className="text-blue-600 hover:text-blue-500 font-medium"
               >
                 Back to Login
               </button>
-            )}
-          </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
