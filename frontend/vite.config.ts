@@ -19,9 +19,13 @@ export default defineConfig(({ mode }) => ({
     },
   },
   build: {
-    // Enable code splitting
+    // Force cache busting by adding timestamp
     rollupOptions: {
       output: {
+        // Add timestamp to chunk names to force cache invalidation
+        chunkFileNames: `assets/[name]-[hash]-${Date.now()}.js`,
+        entryFileNames: `assets/[name]-[hash]-${Date.now()}.js`,
+        assetFileNames: `assets/[name]-[hash]-${Date.now()}.[ext]`,
         manualChunks: {
           // Vendor chunks for better caching
           'react-vendor': ['react', 'react-dom', 'react-router-dom'],
