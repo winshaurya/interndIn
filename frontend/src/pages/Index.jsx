@@ -8,7 +8,7 @@ const Index = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center relative">
-      <div className="absolute inset-0 -z-10 w-full h-full">
+      <div className="fixed inset-0 -z-10 w-screen h-screen">
         <Silk
           speed={5}
           scale={1}
@@ -87,13 +87,23 @@ const Index = () => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 1.2, duration: 0.6 }}
             >
-              <Button variant="gradient" size="lg" asChild>
+              <Button
+                variant="gradient"
+                size="lg"
+                className="bg-white/20 border-2 border-white/40 hover:bg-white/30 text-white hover:text-white/90 backdrop-blur-sm"
+                asChild
+              >
                 <Link to="/signup">
                   Join as Student
                   <ArrowRight className="w-4 h-4 ml-2" />
                 </Link>
               </Button>
-              <Button variant="outline" size="lg" asChild>
+              <Button
+                variant="outline"
+                size="lg"
+                className="bg-white/20 border-2 border-white/40 hover:bg-white/30 text-white hover:text-white/90 backdrop-blur-sm"
+                asChild
+              >
                 <Link to="/signup">
                   Join as Alumni
                 </Link>
