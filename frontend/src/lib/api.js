@@ -97,21 +97,10 @@ class ApiClient {
       }
     }
 
-    // Add authentication token (JWT or Supabase)
+    // Add JWT token from localStorage
     const token = localStorage.getItem('accessToken');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
-    } else {
-      // For OAuth users, try to get Supabase session token
-      try {
-        const { supabase } = await import('@/lib/supabase');
-        const { data: session } = await supabase.auth.getSession();
-        if (session?.session?.access_token) {
-          config.headers.Authorization = `Bearer ${session.session.access_token}`;
-        }
-      } catch (e) {
-        // Ignore if supabase not available
-      }
     }
 
     let attempt = 0;

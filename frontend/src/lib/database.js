@@ -105,7 +105,7 @@ export const updateStudentProfile = async (userId, updates) => {
 export const createStudentProfile = async (profileData) => {
   const { data, error } = await supabase
     .from('student_details')
-    .upsert(profileData)
+    .insert(profileData)
     .select()
     .single()
 
@@ -140,7 +140,7 @@ export const updateAlumniProfile = async (userId, updates) => {
 export const createAlumniProfile = async (profileData) => {
   const { data, error } = await supabase
     .from('alumni_details')
-    .upsert(profileData)
+    .insert(profileData)
     .select()
     .single()
 

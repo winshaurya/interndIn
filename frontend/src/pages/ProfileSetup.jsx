@@ -10,7 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { apiClient } from "@/lib/api";
+import { updateUserProfile, updateStudentProfile, updateAlumniProfile, createStudentProfile, createAlumniProfile } from "@/lib/database";
 import { useAuth } from "@/contexts/AuthContext";
 import { User, GraduationCap, Code, Briefcase, FileText, CheckCircle } from "lucide-react";
 
@@ -27,7 +27,6 @@ export default function ProfileSetup() {
     phone: "",
     dateOfBirth: "",
     address: "",
-    rollNo: "",
 
     // Professional Information (for alumni)
     currentTitle: "",
@@ -151,41 +150,34 @@ export default function ProfileSetup() {
       };
 
       if (role === 'alumni') {
-        // For alumni, use the API client to update profile
-        const alumniData = {
-          name: formData.name,
-          phone: formData.phone,
-          dateOfBirth: formData.dateOfBirth,
-          address: formData.address,
-          currentTitle: formData.currentTitle,
-          companyName: formData.companyName,
-          experienceYears: parseInt(formData.experienceYears) || 0,
-          gradYear: parseInt(formData.gradYear) || new Date().getFullYear(),
-          skills: formData.skills,
-          preferences: formData.preferences,
-          consent: formData.consent,
-        };
-
-        await apiClient.updateAlumniProfile(alumniData);
-        navigate('/alumni');
-      } else {
-        // For students, use the API client to update profile
-        const studentData = {
-          name: formData.name,
-          phone: formData.phone,
-          dateOfBirth: formData.dateOfBirth,
-          address: formData.address,
-          rollNo: formData.rollNo,
-          universityBranch: formData.academics[0]?.branch || "",
-          gradYear: parseInt(formData.academics[0]?.year) || new Date().getFullYear(),
-          cgpa: parseFloat(formData.academics[0]?.gpa) || null,
+        const alumniUpdates = {
+          current_title: formData.currentTitle,
+          company_name: formData.companyName,
+          experience_years: parseInt(formData.experienceYears) || 0,
+          grad_year: parseInt(formData.gradYear) || new Date().getFullYear(),
           academics: formData.academics,
           skills: formData.skills,
           preferences: formData.preferences,
           consent: formData.consent,
         };
 
-        await apiClient.updateStudentProfile(studentData);
+        // Update profiles table
+        await updateUserProfile(user.id, profileUpdates);
+        // Create alumni profile
+        await createAlumniProfile({ id: user.id, ...alumniUpdates });
+        navigate('/alumni');
+      } else {
+        const studentUpdates = {
+          academics: formData.academics,
+          skills: formData.skills,
+          preferences: formData.preferences,
+          consent: formData.consent,
+        };
+
+        // Update profiles table
+        await updateUserProfile(user.id, profileUpdates);
+        // Create student profile
+        await createStudentProfile({ id: user.id, ...studentUpdates });
         navigate('/student');
       }
 
@@ -358,15 +350,6 @@ export default function ProfileSetup() {
                         onChange={(e) => updateFormData('address', e.target.value)}
                         placeholder="Enter your complete address"
                         rows={2}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="rollNo">Roll Number</Label>
-                      <Input
-                        id="rollNo"
-                        value={formData.rollNo}
-                        onChange={(e) => updateFormData('rollNo', e.target.value)}
-                        placeholder="Enter your roll number"
                       />
                     </div>
                   </div>
