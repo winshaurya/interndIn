@@ -8,11 +8,11 @@ const Index = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center relative">
-      <div className="absolute inset-0 -z-10">
+      <div className="absolute inset-0 -z-10 w-full h-full">
         <Silk
           speed={5}
           scale={1}
-          color="#7B7481"
+          color="#F0F0F0"
           noiseIntensity={1.5}
           rotation={0}
         />
@@ -32,7 +32,7 @@ const Index = () => {
               animate={{ scale: 1 }}
               transition={{ delay: 0.2, duration: 0.6 }}
             >
-              <div className="text-right text-4xl md:text-6xl font-bold font-heading">
+              <div className="text-right text-4xl md:text-6xl font-bold font-heading text-glow-white">
                 <motion.div
                   initial={{ x: -50, opacity: 0 }}
                   animate={{ x: 0, opacity: 1 }}
@@ -49,14 +49,14 @@ const Index = () => {
                 </motion.div>
               </div>
               <motion.div
-                className="w-px bg-foreground h-20 md:h-24"
+                className="w-2 bg-foreground h-20 md:h-24"
                 initial={{ scaleY: 0 }}
                 animate={{ scaleY: 1 }}
                 transition={{ delay: 0.6, duration: 0.8 }}
               />
-              <div className="text-left text-4xl md:text-6xl font-bold font-heading">
+              <div className="text-left text-4xl md:text-6xl font-bold font-heading text-glow-white">
                 <motion.div
-                  className="bg-gradient-primary bg-clip-text text-transparent"
+                  className="text-white text-glow-white"
                   initial={{ x: 50, opacity: 0 }}
                   animate={{ x: 0, opacity: 1 }}
                   transition={{ delay: 0.7, duration: 0.6 }}
@@ -64,16 +64,17 @@ const Index = () => {
                   Next Gen
                 </motion.div>
                 <motion.div
+                  className="text-black text-glow-white"
                   initial={{ x: 50, opacity: 0 }}
                   animate={{ x: 0, opacity: 1 }}
                   transition={{ delay: 0.8, duration: 0.6 }}
                 >
-                  engineers
+                  Engineers
                 </motion.div>
               </div>
             </motion.div>
             <motion.p
-              className="text-xl text-muted-foreground mb-8"
+              className="text-xl text-white mb-8"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 1, duration: 0.6 }}

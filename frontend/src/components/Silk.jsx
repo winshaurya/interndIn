@@ -1,7 +1,7 @@
 /* eslint-disable react/no-unknown-property */
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { forwardRef, useRef, useMemo, useLayoutEffect } from 'react';
-import { Color } from 'three';
+import * as THREE from 'three';
 
 const hexToNormalizedRGB = hex => {
   hex = hex.replace('#', '');
@@ -71,21 +71,68 @@ void main() {
 
 const SilkPlane = forwardRef(function SilkPlane({ uniforms }, ref) {
   const { viewport } = useThree();
+  const materialRef = useRef();
 
   useLayoutEffect(() => {
     if (ref.current) {
       ref.current.scale.set(viewport.width, viewport.height, 1);
     }
-  }, [ref, viewport]);
+
+    // create a native THREE.ShaderMaterial and attach to the mesh to avoid JSX shaderMaterial issues
+    const mat = new THREE.ShaderMaterial({
+      uniforms: {
+        uTime: { value: 0 },
+        uColor: { value: uniforms.uColor?.value ? uniforms.uColor.value.clone() : new THREE.Color(1, 1, 1) },
+        uSpeed: { value: uniforms.uSpeed?.value ?? 0 },
+        uScale: { value: uniforms.uScale?.value ?? 1 },
+        uRotation: { value: uniforms.uRotation?.value ?? 0 },
+        uNoiseIntensity: { value: uniforms.uNoiseIntensity?.value ?? 0 }
+      },
+      vertexShader,
+      fragmentShader,
+      transparent: false
+    });
+
+    materialRef.current = mat;
+
+    if (ref.current) {
+      ref.current.material = mat;
+    }
+
+    return () => {
+      mat.dispose();
+    };
+  }, [ref, viewport, uniforms]);
 
   useFrame((_, delta) => {
-    ref.current.material.uniforms.uTime.value += 0.1 * delta;
+    if (!materialRef.current) return;
+    materialRef.current.uniforms.uTime.value += 0.1 * delta;
+
+    // keep prop-driven uniforms in sync
+    if (uniforms.uSpeed) materialRef.current.uniforms.uSpeed.value = uniforms.uSpeed.value;
+    if (uniforms.uScale) materialRef.current.uniforms.uScale.value = uniforms.uScale.value;
+    if (uniforms.uRotation) materialRef.current.uniforms.uRotation.value = uniforms.uRotation.value;
+    if (uniforms.uNoiseIntensity) materialRef.current.uniforms.uNoiseIntensity.value = uniforms.uNoiseIntensity.value;
+    if (uniforms.uColor && materialRef.current.uniforms.uColor.value.copy) {
+      materialRef.current.uniforms.uColor.value.copy(uniforms.uColor.value);
+    }
   });
 
   return (
     <mesh ref={ref}>
       <planeGeometry args={[1, 1, 1, 1]} />
-      <shaderMaterial uniforms={uniforms} vertexShader={vertexShader} fragmentShader={fragmentShader} />
+      {materialRef.current ? (
+        <primitive object={materialRef.current} attach="material" />
+      ) : (
+        <meshBasicMaterial
+          attach="material"
+          color={
+            uniforms?.uColor?.value && uniforms.uColor.value.getHexString
+              ? `#${uniforms.uColor.value.getHexString()}`
+              : "#7B7481"
+          }
+        />
+      )}
     </mesh>
   );
 });
@@ -99,7 +146,7 @@ const Silk = ({ speed = 5, scale = 1, color = '#7B7481', noiseIntensity = 1.5, r
       uSpeed: { value: speed },
       uScale: { value: scale },
       uNoiseIntensity: { value: noiseIntensity },
-      uColor: { value: new Color(...hexToNormalizedRGB(color)) },
+      uColor: { value: new THREE.Color(...hexToNormalizedRGB(color)) },
       uRotation: { value: rotation },
       uTime: { value: 0 }
     }),

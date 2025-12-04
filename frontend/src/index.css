@@ -15,8 +15,8 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222 47% 11%;
+    --background: 210 10% 98%;
+    --foreground: 220 20% 3%;
 
     --card: 0 0% 100%;
     --card-foreground: 222 47% 11%;
@@ -25,12 +25,12 @@
     --popover-foreground: 222 47% 11%;
 
     /* Modern purple primary */
-    --primary: 262 83% 58%;
+    --primary: 262 95% 35%;
     --primary-foreground: 0 0% 100%;
-    --primary-glow: 262 83% 70%;
-    --primary-hover: 262 83% 65%;
-    --primary-dark: 262 83% 45%;
-    --primary-light: 262 83% 75%;
+    --primary-glow: 262 95% 50%;
+    --primary-hover: 262 95% 45%;
+    --primary-dark: 262 95% 25%;
+    --primary-light: 262 95% 60%;
 
     /* Sidebar theme (light purple) */
     --sidebar-background: 262 83% 95%;
@@ -47,7 +47,7 @@
     --secondary-foreground: 222 47% 11%;
 
     --muted: 210 40% 96%;
-    --muted-foreground: 215 20% 45%;
+    --muted-foreground: 215 15% 20%;
 
     --accent: 210 40% 96%;
     --accent-foreground: 222 47% 11%;
@@ -61,7 +61,7 @@
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 214 32% 91%;
+    --border: 214 32% 80%;
     --input: 214 32% 91%;
     --ring: 262 83% 58%;
 
@@ -150,6 +150,10 @@
 
   .animate-fade-in {
     animation: fadeIn 0.5s ease-out;
+  }
+
+  .text-glow-white {
+    text-shadow: 0 0 5px rgba(255, 255, 255, 0.6), 0 0 10px rgba(255, 255, 255, 0.4);
   }
 }
 
