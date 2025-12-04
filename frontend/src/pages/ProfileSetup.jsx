@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,19 +10,16 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { apiClient } from "@/lib/api";
+import { updateUserProfile, updateStudentProfile, updateAlumniProfile, createStudentProfile, createAlumniProfile } from "@/lib/database";
+import { useAuth } from "@/contexts/AuthContext";
 import { User, GraduationCap, Code, Briefcase, FileText, CheckCircle } from "lucide-react";
 
 export default function ProfileSetup() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user } = useAuth();
   const [currentStep, setCurrentStep] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
-
-  const { data: userData } = useQuery({
-    queryKey: ["user"],
-    queryFn: () => apiClient.getCurrentUser(),
-  });
 
   const [formData, setFormData] = useState({
     // Personal Information
@@ -66,7 +62,7 @@ export default function ProfileSetup() {
     }
   });
 
-  const userRole = userData?.role || 'student';
+  const userRole = user?.role || 'student';
 
   const steps = userRole === 'alumni' ? [
     { title: "Personal Info", icon: User, required: true },
@@ -139,13 +135,49 @@ export default function ProfileSetup() {
   const handleSubmit = async () => {
     setIsLoading(true);
     try {
-      // Determine user role and call appropriate API
-      const role = userData?.role || 'student';
+      if (!user?.id) {
+        throw new Error('User not authenticated');
+      }
+
+      const role = user?.role || 'student';
+
+      // Separate profile data from role-specific data
+      const profileUpdates = {
+        full_name: formData.name,
+        phone: formData.phone,
+        date_of_birth: formData.dateOfBirth,
+        address: formData.address,
+      };
+
       if (role === 'alumni') {
-        await apiClient.updateAlumniProfile(formData);
+        const alumniUpdates = {
+          current_title: formData.currentTitle,
+          company_name: formData.companyName,
+          experience_years: parseInt(formData.experienceYears) || 0,
+          grad_year: parseInt(formData.gradYear) || new Date().getFullYear(),
+          academics: formData.academics,
+          skills: formData.skills,
+          preferences: formData.preferences,
+          consent: formData.consent,
+        };
+
+        // Update profiles table
+        await updateUserProfile(user.id, profileUpdates);
+        // Create alumni profile
+        await createAlumniProfile({ id: user.id, ...alumniUpdates });
         navigate('/alumni');
       } else {
-        await apiClient.updateStudentProfile(formData);
+        const studentUpdates = {
+          academics: formData.academics,
+          skills: formData.skills,
+          preferences: formData.preferences,
+          consent: formData.consent,
+        };
+
+        // Update profiles table
+        await updateUserProfile(user.id, profileUpdates);
+        // Create student profile
+        await createStudentProfile({ id: user.id, ...studentUpdates });
         navigate('/student');
       }
 

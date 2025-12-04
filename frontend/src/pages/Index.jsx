@@ -2,11 +2,21 @@ import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
+import Silk from "@/components/Silk";
 
 const Index = () => {
 
   return (
-    <div className="min-h-screen bg-gradient-subtle flex items-center justify-center">
+    <div className="min-h-screen flex items-center justify-center relative">
+      <div className="absolute inset-0 -z-10">
+        <Silk
+          speed={5}
+          scale={1}
+          color="#7B7481"
+          noiseIntensity={1.5}
+          rotation={0}
+        />
+      </div>
       {/* Hero Section */}
       <section className="py-16 md:py-20 w-full">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">

@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useShellHeader } from "@/hooks/useShellHeader";
 import { apiClient } from "@/lib/api";
+import { updateUserProfile, updateStudentProfile } from "@/lib/database";
+import { useAuth } from "@/contexts/AuthContext";
 import ProfileEditor from "@/components/profile/ProfileEditor";
 import ProfileCompletionMeter from "@/components/profile/ProfileCompletionMeter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,6 +15,7 @@ import DataState from "@/components/common/DataState";
 
 export default function StudentProfile() {
   const [profileData, setProfileData] = useState(null);
+  const { user } = useAuth();
 
   useShellHeader({
     title: "My Student Profile",
@@ -37,7 +40,33 @@ export default function StudentProfile() {
 
   const handleSaveProfile = async (updatedData) => {
     try {
-      await apiClient.updateStudentProfile(updatedData);
+      const userId = user?.id;
+      if (!userId) throw new Error('User not authenticated');
+
+      // Update basic profile info in profiles table
+      const profileUpdates = {};
+      if (updatedData.name) profileUpdates.full_name = updatedData.name;
+      if (updatedData.email) profileUpdates.email = updatedData.email;
+      if (updatedData.phone) profileUpdates.phone = updatedData.phone;
+      if (updatedData.dateOfBirth) profileUpdates.date_of_birth = updatedData.dateOfBirth;
+      if (updatedData.address) profileUpdates.address = updatedData.address;
+
+      if (Object.keys(profileUpdates).length > 0) {
+        await updateUserProfile(userId, profileUpdates);
+      }
+
+      // Update student-specific details
+      const studentUpdates = {};
+      if (updatedData.universityBranch) studentUpdates.university_branch = updatedData.universityBranch;
+      if (updatedData.gradYear) studentUpdates.grad_year = updatedData.gradYear;
+      if (updatedData.cgpa) studentUpdates.cgpa = updatedData.cgpa;
+      if (updatedData.resumeUrl) studentUpdates.resume_url = updatedData.resumeUrl;
+      if (updatedData.skills) studentUpdates.skills = updatedData.skills;
+
+      if (Object.keys(studentUpdates).length > 0) {
+        await updateStudentProfile(userId, studentUpdates);
+      }
+
       await refetch();
     } catch (error) {
       throw error;
