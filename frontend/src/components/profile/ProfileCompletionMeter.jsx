@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle, Circle, AlertCircle } from "lucide-react";
 
-const ProfileCompletionMeter = ({ sections, completionPercentage }) => {
+const ProfileCompletionMeter = ({ sections = [], completionPercentage }) => {
   const getStatusIcon = (completed) => {
     return completed ? (
       <CheckCircle className="w-4 h-4 text-success" />
@@ -62,27 +62,29 @@ const ProfileCompletionMeter = ({ sections, completionPercentage }) => {
         </div>
 
         {/* Section Checklist */}
-        <div className="space-y-2">
-          <h4 className="font-medium text-sm text-muted-foreground uppercase tracking-wide">
-            Required Sections
-          </h4>
+        {sections && sections.length > 0 && (
           <div className="space-y-2">
-            {sections.map((section) => (
-              <div key={section.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-accent/30 transition-colors">
-                {getStatusIcon(section.completed)}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between">
-                    <span className={`text-sm font-medium ${section.completed ? 'text-foreground' : 'text-muted-foreground'}`}>
-                      {section.title}
-                    </span>
-                    <span className="text-xs text-muted-foreground">+{section.weight}%</span>
+            <h4 className="font-medium text-sm text-muted-foreground uppercase tracking-wide">
+              Required Sections
+            </h4>
+            <div className="space-y-2">
+              {sections.map((section) => (
+                <div key={section.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-accent/30 transition-colors">
+                  {getStatusIcon(section.completed)}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between">
+                      <span className={`text-sm font-medium ${section.completed ? 'text-foreground' : 'text-muted-foreground'}`}>
+                        {section.title}
+                      </span>
+                      <span className="text-xs text-muted-foreground">+{section.weight}%</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">{section.description}</p>
                   </div>
-                  <p className="text-xs text-muted-foreground">{section.description}</p>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
+        )}
       </CardContent>
     </Card>
   );

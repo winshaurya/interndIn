@@ -81,7 +81,7 @@ export default function StudentProfile() {
             </div>
           </div>
           <div className="flex items-center space-x-2">
-            <ProfileCompletionMeter percentage={completionPercentage} />
+            <ProfileCompletionMeter completionPercentage={completionPercentage} />
             <ProfileEditor
               profileData={profileData}
               setProfileData={setProfileData}
