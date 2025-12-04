@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, Eye, EyeOff, User, GraduationCap } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { apiClient } from '@/lib/api';
 
 const studentSignUpSchema = z.object({
   firstName: z.string().min(2, 'First name must be at least 2 characters'),
@@ -46,25 +47,16 @@ export default function StudentSignUp() {
     setError('');
 
     try {
-      const response = await fetch('http://localhost:5004/api/auth/register', {
+      const result = await apiClient.request('/auth/register', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+        body: {
           email: data.email,
           password: data.password,
           role: 'student',
           firstName: data.firstName,
           lastName: data.lastName,
-        }),
+        },
       });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.message || 'Registration failed');
-      }
 
       // Store the token if provided
       if (result.token) {

@@ -148,15 +148,10 @@ const ProfileManager = ({ readOnly = false }) => {
     formDataUpload.append('picture', profilePictureFile);
 
     try {
-      const response = await fetch('/api/profile/picture', {
+      const result = await apiClient.request('/profile/picture', {
         method: 'POST',
         body: formDataUpload,
-        credentials: 'include'
       });
-
-      const result = await response.json();
-
-      if (response.ok && result.success) {
         toast({
           title: "Profile picture updated",
           description: "Your profile picture has been uploaded successfully",

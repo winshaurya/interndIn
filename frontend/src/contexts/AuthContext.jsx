@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { getRoleHome } from '@/lib/auth';
+import { apiClient } from '@/lib/api';
 
 const AuthContext = createContext();
 
@@ -25,31 +26,20 @@ export const AuthProvider = ({ children }) => {
         if (token) {
           // Validate token with backend
           try {
-            const response = await fetch('http://localhost:5004/api/auth/profile', {
-              headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json',
-              },
-            });
+            const data = await apiClient.request('/auth/profile');
 
-            if (response.ok) {
-              const data = await response.json();
-              const userData = {
-                id: data.user.id,
-                email: data.user.email,
-                role: data.user.role,
-                fullName: data.user.fullName || '',
-                avatarUrl: data.user.avatarUrl || '',
-                headline: data.user.headline || '',
-                about: data.user.about || '',
-                isVerified: data.user.isVerified || false,
-              };
-              setUser(userData);
-              setIsAuthenticated(true);
-            } else {
-              // Token invalid, remove it
-              localStorage.removeItem('accessToken');
-            }
+            const userData = {
+              id: data.user.id,
+              email: data.user.email,
+              role: data.user.role,
+              fullName: data.user.fullName || '',
+              avatarUrl: data.user.avatarUrl || '',
+              headline: data.user.headline || '',
+              about: data.user.about || '',
+              isVerified: data.user.isVerified || false,
+            };
+            setUser(userData);
+            setIsAuthenticated(true);
           } catch (error) {
             console.error('Token validation error:', error);
             localStorage.removeItem('accessToken');
@@ -69,19 +59,10 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     try {
-      const response = await fetch('http://localhost:5004/api/auth/login', {
+      const result = await apiClient.request('/auth/login', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password }),
+        body: { email, password },
       });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.message || 'Login failed');
-      }
 
       // Store token and set user
       if (result.token) {
@@ -109,25 +90,16 @@ export const AuthProvider = ({ children }) => {
 
   const register = async (userData) => {
     try {
-      const response = await fetch('http://localhost:5004/api/auth/register', {
+      const result = await apiClient.request('/auth/register', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+        body: {
           email: userData.email,
           password: userData.password,
           role: userData.role,
           firstName: userData.firstName,
           lastName: userData.lastName,
-        }),
+        },
       });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.message || 'Registration failed');
-      }
 
       // Store token and set user
       if (result.token) {
@@ -165,21 +137,10 @@ export const AuthProvider = ({ children }) => {
 
   const updateProfile = async (profileData) => {
     try {
-      const token = localStorage.getItem('accessToken');
-      const response = await fetch('http://localhost:5004/api/auth/profile', {
+      const result = await apiClient.request('/auth/profile', {
         method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(profileData),
+        body: profileData,
       });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.message || 'Profile update failed');
-      }
 
       // Update local user state
       setUser(prev => ({ ...prev, ...result.user }));

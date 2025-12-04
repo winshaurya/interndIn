@@ -84,13 +84,17 @@ class ApiClient {
       headers: {
         ...headers,
       },
-      body,
       credentials: 'include',
     };
 
-    // Only set Content-Type for non-FormData requests
-    if (!(body instanceof FormData)) {
-      config.headers["Content-Type"] = "application/json";
+    // Handle body
+    if (body) {
+      if (body instanceof FormData) {
+        config.body = body;
+      } else {
+        config.body = JSON.stringify(body);
+        config.headers["Content-Type"] = "application/json";
+      }
     }
 
     // Add JWT token from localStorage
