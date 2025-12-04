@@ -1,8 +1,19 @@
 const { verifyAccessToken } = require('../config/jwt');
 const db = require('../config/db');
 
-// Middleware to authenticate JWT tokens
-const authenticate = (req, res, next) => {
+const { verifyAccessToken } = require('../config/jwt');
+const db = require('../config/db');
+const jwt = require('jsonwebtoken');
+const { createClient } = require('@supabase/supabase-js');
+
+// Initialize Supabase admin client
+const supabaseAdmin = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
+
+// Middleware to authenticate JWT tokens (both custom and Supabase)
+const authenticate = async (req, res, next) => {
   try {
     // Get token from Authorization header
     const authHeader = req.headers.authorization;
@@ -15,17 +26,43 @@ const authenticate = (req, res, next) => {
 
     const token = authHeader.substring(7); // Remove 'Bearer ' prefix
 
-    // Verify the token
-    const decoded = verifyAccessToken(token);
+    let userInfo;
+
+    // First try to verify as custom JWT
+    try {
+      const decoded = verifyAccessToken(token);
+      userInfo = {
+        userId: decoded.userId,
+        email: decoded.email,
+        role: decoded.role,
+        id: decoded.id || decoded.userId
+      };
+    } catch (customJwtError) {
+      // If custom JWT verification fails, try to get user from Supabase
+      try {
+        const { data: user, error } = await supabaseAdmin.auth.getUser(token);
+        if (error || !user) throw error;
+
+        // Get role from database
+        const { data: profile } = await db
+          .from('profiles')
+          .select('role')
+          .eq('id', user.id)
+          .single();
+
+        userInfo = {
+          userId: user.id,
+          email: user.email,
+          role: profile?.role || 'student',
+          id: user.id
+        };
+      } catch (supabaseError) {
+        throw new Error('Invalid token');
+      }
+    }
 
     // Attach user info to request
-    req.user = {
-      userId: decoded.userId,
-      email: decoded.email,
-      role: decoded.role,
-      id: decoded.id || decoded.userId // for backward compatibility
-    };
-
+    req.user = userInfo;
     next();
   } catch (error) {
     console.error('Auth middleware error:', error.message);

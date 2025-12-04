@@ -39,11 +39,19 @@ CREATE TABLE IF NOT EXISTS public.profiles (
 -- Sub-tables for specific details
 CREATE TABLE IF NOT EXISTS public.student_details (
     id UUID PRIMARY KEY REFERENCES public.profiles(id) ON DELETE CASCADE,
+    roll_no TEXT,
+    date_of_birth DATE,
+    phone TEXT,
+    address TEXT,
     university_branch TEXT,
     grad_year INTEGER,
     cgpa NUMERIC(3,2),
     resume_url TEXT, -- Link to the storage bucket
     skills TEXT[],
+    experiences JSONB DEFAULT '[]'::jsonb,
+    academics JSONB DEFAULT '[]'::jsonb,
+    preferences JSONB DEFAULT '{}'::jsonb,
+    consent JSONB DEFAULT '{}'::jsonb,
     updated_at TIMESTAMPTZ DEFAULT now()
 );
 

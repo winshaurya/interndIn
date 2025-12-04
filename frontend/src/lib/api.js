@@ -97,10 +97,21 @@ class ApiClient {
       }
     }
 
-    // Add JWT token from localStorage
+    // Add authentication token (JWT or Supabase)
     const token = localStorage.getItem('accessToken');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+    } else {
+      // For OAuth users, try to get Supabase session token
+      try {
+        const { supabase } = await import('@/lib/supabase');
+        const { data: session } = await supabase.auth.getSession();
+        if (session?.session?.access_token) {
+          config.headers.Authorization = `Bearer ${session.session.access_token}`;
+        }
+      } catch (e) {
+        // Ignore if supabase not available
+      }
     }
 
     let attempt = 0;
@@ -192,13 +203,19 @@ class ApiClient {
       if (profile) {
         const normalized = {
           ...profile,
-          studentId: profile.student_id ?? profile.studentId,
+          rollNo: profile.roll_no ?? profile.rollNo,
           dateOfBirth: profile.date_of_birth ?? profile.dateOfBirth,
+          phone: profile.phone ?? profile.phone,
+          address: profile.address ?? profile.address,
           universityBranch: profile.university_branch ?? profile.universityBranch,
           gradYear: profile.grad_year ?? profile.gradYear,
           cgpa: profile.cgpa ?? profile.cgpa,
           resumeUrl: profile.resume_url ?? profile.resumeUrl,
           skills: Array.isArray(profile.skills) ? profile.skills : (profile.skills ? String(profile.skills).split(',').map(s=>s.trim()) : []),
+          experiences: profile.experiences ?? profile.experiences ?? [],
+          academics: profile.academics ?? profile.academics ?? [],
+          preferences: profile.preferences ?? profile.preferences ?? {},
+          consent: profile.consent ?? profile.consent ?? {},
         };
         return { ...res, data: { profile: normalized } };
       }
@@ -318,18 +335,18 @@ class ApiClient {
 
   // ================= Application endpoints =================
   async applyForJob(jobData) {
-    return this.request("/job-application/job/apply-job", {
+    return this.request("/job-application/apply-job", {
       method: "POST",
       body: JSON.stringify(jobData),
     });
   }
 
   async getAppliedJobs() {
-    return this.request("/job-application/job/get-applied-jobs");
+    return this.request("/job-application/get-applied-jobs");
   }
 
   async withdrawApplication(jobId) {
-    return this.request(`/job-application/job/withdraw-application/${jobId}`, {
+    return this.request(`/job-application/withdraw-application/${jobId}`, {
       method: "DELETE",
     });
   }

@@ -53,13 +53,21 @@ const upsertProfile = async (req, res) => {
     const userId = getUserIdFromReq(req);
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
-    const { full_name, university_branch, grad_year, skills, resume_url, cgpa } = req.body || {};
+    const {
+      full_name, email, phone, roll_no, date_of_birth, address,
+      university_branch, grad_year, cgpa, resume_url, skills,
+      experiences, academics, preferences, consent
+    } = req.body || {};
 
     // Update profiles table
-    if (full_name !== undefined) {
+    const profileUpdates = {};
+    if (full_name !== undefined) profileUpdates.full_name = full_name;
+    if (email !== undefined) profileUpdates.email = email;
+
+    if (Object.keys(profileUpdates).length > 0) {
       const { error: profileError } = await db
         .from('profiles')
-        .update({ full_name })
+        .update(profileUpdates)
         .eq('id', userId);
 
       if (profileError) throw profileError;
@@ -67,11 +75,19 @@ const upsertProfile = async (req, res) => {
 
     // Upsert student_details
     const studentData = {};
+    if (roll_no !== undefined) studentData.roll_no = roll_no;
+    if (date_of_birth !== undefined) studentData.date_of_birth = date_of_birth;
+    if (phone !== undefined) studentData.phone = phone;
+    if (address !== undefined) studentData.address = address;
     if (university_branch !== undefined) studentData.university_branch = university_branch;
     if (grad_year !== undefined) studentData.grad_year = Number(grad_year);
     if (cgpa !== undefined) studentData.cgpa = parseFloat(cgpa);
     if (resume_url !== undefined) studentData.resume_url = resume_url;
     if (skills !== undefined) studentData.skills = Array.isArray(skills) ? skills : (skills ? skills.split(',').map(s=>s.trim()) : null);
+    if (experiences !== undefined) studentData.experiences = experiences;
+    if (academics !== undefined) studentData.academics = academics;
+    if (preferences !== undefined) studentData.preferences = preferences;
+    if (consent !== undefined) studentData.consent = consent;
 
     if (Object.keys(studentData).length > 0) {
       const { error: studentError } = await db

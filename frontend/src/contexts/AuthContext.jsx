@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { getRoleHome } from '@/lib/auth';
 import { apiClient } from '@/lib/api';
+import { supabase } from '@/lib/supabase';
 
 const AuthContext = createContext();
 
@@ -45,6 +46,32 @@ export const AuthProvider = ({ children }) => {
             localStorage.removeItem('accessToken');
           }
         }
+
+        // Check for Supabase session
+        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+        if (!sessionError && sessionData.session) {
+          // Get user profile from database
+          const { data: profile, error: profileError } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', sessionData.session.user.id)
+            .single();
+
+          if (!profileError && profile) {
+            const userData = {
+              id: profile.id,
+              email: profile.email,
+              role: profile.role,
+              fullName: profile.full_name || '',
+              avatarUrl: profile.avatar_url || '',
+              headline: profile.headline || '',
+              about: profile.about || '',
+              isVerified: profile.is_verified || false,
+            };
+            setUser(userData);
+            setIsAuthenticated(true);
+          }
+        }
       } catch (error) {
         console.error('Auth initialization error:', error);
       } finally {
@@ -53,6 +80,40 @@ export const AuthProvider = ({ children }) => {
     };
 
     initializeAuth();
+
+    // Listen for Supabase auth state changes
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN' && session) {
+        // Get user profile from database
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', session.user.id)
+          .single();
+
+        if (!profileError && profile) {
+          const userData = {
+            id: profile.id,
+            email: profile.email,
+            role: profile.role,
+            fullName: profile.full_name || '',
+            avatarUrl: profile.avatar_url || '',
+            headline: profile.headline || '',
+            about: profile.about || '',
+            isVerified: profile.is_verified || false,
+          };
+          setUser(userData);
+          setIsAuthenticated(true);
+        }
+      } else if (event === 'SIGNED_OUT') {
+        setUser(null);
+        setIsAuthenticated(false);
+      }
+    });
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
   }, []);
 
 
@@ -126,6 +187,9 @@ export const AuthProvider = ({ children }) => {
     try {
       // Clear JWT token from localStorage
       localStorage.removeItem('accessToken');
+
+      // Sign out from Supabase
+      await supabase.auth.signOut();
 
       setUser(null);
       setIsAuthenticated(false);

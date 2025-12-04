@@ -61,8 +61,8 @@ export default function StudentApplications() {
     queryKey: ["student-applications"],
     queryFn: async () => {
       try {
-        const response = await apiClient.request("/job/applications/me", { method: "GET" });
-        return response?.data || [];
+        const response = await apiClient.getAppliedJobs();
+        return response?.applications || [];
       } catch (error) {
         console.warn("Falling back to mock applications", error);
         return fallbackApplications;

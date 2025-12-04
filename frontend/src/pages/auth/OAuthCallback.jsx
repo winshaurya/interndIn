@@ -52,7 +52,7 @@ export default function OAuthCallback() {
               setStatus('success');
               setMessage('Account created successfully! Setting up your profile...');
               setTimeout(() => {
-                navigate('/profile/setup', { replace: true });
+                navigate('/profile-setup', { replace: true });
               }, 2000);
               return;
             }
@@ -60,7 +60,7 @@ export default function OAuthCallback() {
           }
 
           // Store session info
-          localStorage.setItem('supabase_session', JSON.stringify(data.session));
+          // localStorage.setItem('supabase_session', JSON.stringify(data.session)); // AuthContext handles this
 
           // Navigate to role-based home
           const homeRoute = getRoleHome(profile.role);
